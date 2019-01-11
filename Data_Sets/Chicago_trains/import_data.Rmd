@@ -1,0 +1,606 @@
+---
+title: "Chicago Train Data"
+author: "Max Kuhn"
+date: "3/27/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, digits = 3, tidy = FALSE)
+options(width = 80, digits = 3)
+
+library(tidyverse)
+library(lubridate)
+library(timeDate)
+library(recipes)
+library(caret)
+library(readxl)
+library(retrosheet)
+```
+
+The source data for station entries can be found at the [City of Chicago web portal]( https://data.cityofchicago.org/Transportation/CTA-Ridership-L-Station-Entries-Daily-Totals/5neh-572f). 
+
+## Import the Station Data and Entry Data
+
+The station data are contained in a small csv file, but several versions exist over time. We pool them. 
+
+```{r station_import, results = 'hide'}
+stations_new <- 
+  read_csv("cta_L_stops_rls_2018.csv") %>% 
+  # Remove duplicate rows
+  group_by(MAP_ID) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  mutate(
+    Location  = gsub("[\\)\\(]", "", Location),
+    LAT = str_split(Location, pattern = ",") %>% map_chr(pluck, 1) %>% as.numeric(),
+    LON = str_split(Location, pattern = ",") %>% map_chr(pluck, 2) %>% as.numeric()
+    ) %>% 
+  select(PARENT_STOP_ID = MAP_ID, STATION_NAME, STATION_DESCRIPTIVE_NAME, LON, LAT)
+
+stops <- unique(stations_new$PARENT_STOP_ID)
+
+stations_old <- 
+  read_csv("cta_L_stops_rls.csv") %>% 
+  # Remove duplicate rows
+  group_by(PARENT_STOP_ID) %>% 
+  slice(1) %>% 
+  select(PARENT_STOP_ID, STATION_NAME, STATION_DESCRIPTIVE_NAME, LON, LAT) %>% 
+  filter(!(PARENT_STOP_ID %in% stops))
+
+stations <- 
+  bind_rows(stations_new, stations_old) %>% 
+  distinct(PARENT_STOP_ID, STATION_NAME, STATION_DESCRIPTIVE_NAME, LON, LAT) %>% 
+  mutate(PARENT_STOP_ID = paste0("s_", PARENT_STOP_ID)) %>% 
+  select(station_id = PARENT_STOP_ID, name = STATION_NAME, 
+         description = STATION_DESCRIPTIVE_NAME, lon = LON, lat = LAT) 
+```
+
+The entry data are contained in a file with fewer fields but many rows
+
+```{r entry_import, results = 'hide'}
+raw_entries <- read_csv(
+  "Entries.csv",
+  col_types = list(
+    col_integer(), 
+    col_character(),
+    col_date(format = "%m/%d/%Y"),
+    col_character(),
+    col_integer())                      
+  ) %>%
+  select(-daytype, -stationname) %>%
+  ## In thousands
+  mutate(rides = rides/1000) %>%
+  ## stop here even if date file gets updated
+  filter(date >= ymd("2001-01-01") & date < ymd("2016-09-12"))
+raw_entries
+```
+
+## Data Cleaning
+
+There are some duplicate values on a given day. Visual inspection leads me to think the values are very similar within day to we take the average. 
+
+```{r average_entry}
+averaged <- 
+  raw_entries %>%
+  group_by(station_id, date) %>%
+  summarise(rides = mean(rides, na.rm = TRUE))
+```
+
+We might want to eliminate some station data based on high percentages of missing data or stations that have very low entries per day. 
+
+```{r entry_check}
+entry_summaries <- 
+  averaged %>%
+  summarize(total = length(rides),
+            missing = mean(is.na(rides)),
+            zeros = sum(rides == 0),
+            p10 = quantile(rides, prob = .1),
+            p90 = quantile(rides, prob = .9))
+
+fewer_data <- entry_summaries$station_id[entry_summaries$total < 4]
+low_entries <- entry_summaries$station_id[entry_summaries$p10 < .250]
+vol_exclusions <- unique(c(fewer_data, low_entries))
+length(vol_exclusions)
+averaged <- 
+  averaged %>%
+  filter(!(station_id %in% vol_exclusions))
+```
+
+Now the data are reshaped into a wide format where there is a row for each day and seperate columns for the stations. 
+
+```{r reshape}
+entries <- 
+  averaged %>% 
+  spread(station_id, rides)
+
+station_cols <- names(entries)[-1]
+station_cols <- paste0("s_", station_cols)
+
+entries <- setNames(entries, c("date", station_cols))
+```
+
+Are the dates consecutive? 
+
+```{r consecutive_check}
+table(diff(as.numeric(entries$date)))
+```
+
+How many days had any misalignment of data that induced missing data?
+
+```{r n_missing}
+sum(!complete.cases(entries))
+## Where are they? 
+num_missing <- map_int(entries[, -1], function(x) sum(is.na(x)))
+num_missing[num_missing > 0]
+## Are they randomly missing or in a block?
+diff(which(is.na(entries$s_40190)))
+summary(entries$date[is.na(entries$s_40190)])
+```
+Perhaps there was a closure for these stations in September 2013. These stations are not listed in the station data file so I'll just eliminate them for now. 
+
+```{r missing_stations}
+missing_stations <- names(num_missing)[num_missing > 0]
+entries <- 
+  entries %>%
+  dplyr::select(-!!missing_stations)
+```
+
+## Lagging the Data
+
+The first set of predictors will be based on lagged verions of the data. We will be modeling the entry data for the Clark/Lake station (`s_40380`) and trying to predict those results at least a week ahead of the current date. Lagged versions of the data for days 14, 15, ..., 21 days will be created for all `r ncol(entries) -1` stations. 
+
+```{r lag}
+make_lag <- function(x, lag = 14) {
+  x$date <- x$date + days(lag)
+  prefix <- ifelse(lag < 10, paste0("0", lag), lag)
+  prefix <- paste0("l", prefix, "_")
+  names(x) <- gsub("s_", prefix, names(x))
+  x
+}
+
+lag_vals <- 14:21
+lag_pred <- NULL
+for (i in seq(along = lag_vals)) {
+  tmp_lag <- make_lag(entries, lag = lag_vals[i])
+  lag_pred <- if (i == 1) tmp_lag else merge(lag_pred, tmp_lag)
+  rm(tmp_lag)
+}
+dim(entries)
+dim(lag_pred)
+```
+
+A list is started to keep track of which predictors belong to which set:
+
+```{r var_set}
+var_sets <- list(
+  lag14 = grep("^l14", names(lag_pred), value = TRUE)
+)
+var_sets$other_lag <- setdiff(names(lag_pred), c(var_sets$lag14, "date"))
+```
+
+
+
+## Getting Weather Data
+
+The weather might be an important predictor of ridership^[The `weatherData` package was used to get hourly weather data for a particular date and location (see `get_weather.R`). These data were cached and are contained in an `RData` file.].  One function `process_daily_weather` is used to clean the weather results for a given day from Chicago Midway International Airport. Another function, `summarized_weather`, is used to summarize the hourly weather data to daily weather data. 
+
+```{r weather_funcs}
+load("raw_weather.RData")
+
+summarized_weather <- function(dat) {  
+  cond_names <- c('Blowing Snow', 'Clear', 'Fog', 'Haze', 
+                  'Heavy Rain', 'Heavy Snow', 
+                  'Heavy Thunderstorms and Rain', 'Light Drizzle', 
+                  'Light Freezing Drizzle', 'Light Freezing Fog', 
+                  'Light Freezing Rain', 'Light Ice Pellets', 
+                  'Light Rain', 'Light Snow', 
+                  'Light Thunderstorms and Rain', 'Mist', 
+                  'Mostly Cloudy', 'Overcast', 'Partly Cloudy', 
+                  'Rain', 'Scattered Clouds', 'Shallow Fog', 
+                  'Snow', 'Squalls', 'Thunderstorm', 
+                  'Thunderstorms and Rain', 'Thunderstorms with Hail')
+  dat$Conditions <- factor(as.character(dat$Conditions),
+                           levels = cond_names)
+  cond_table <- table(dat$Conditions)
+  cond_table <- cond_table/sum(cond_table)
+  names(cond_table) <- make.names(tolower(names(cond_table)))
+  names(cond_table) <- paste("cond", names(cond_table), sep = "_")
+  names(cond_table) <- gsub("\\.", "_", names(cond_table))
+    
+  rain_group <- "(rain)|(drizzle)|(mist)"
+  ice_group <- "(freezing)|(hail)|(ice)" 
+  cloud_group <- "(cloud)|(overcast)|(haze)|(fog)|(mist)|(smoke)"
+  storm_group <- "(storm)|(squall)|(overcast)"
+  snow_group <- "(snow)|(freezing)|(hail)|(ice)"  
+  
+  weather_rain <- sum(grepl(rain_group, tolower(as.character(dat$Conditions))))/nrow(dat)
+  weather_ice <- sum(grepl(ice_group, tolower(as.character(dat$Conditions))))/nrow(dat)
+  weather_cloud <- sum(grepl(cloud_group, tolower(as.character(dat$Conditions))))/nrow(dat)
+  weather_storm <- sum(grepl(storm_group, tolower(as.character(dat$Conditions))))/nrow(dat)
+  weather_snow <- sum(grepl(snow_group, tolower(as.character(dat$Conditions))))/nrow(dat)
+  
+  out <- 
+    data.frame(
+      temp_min = min(dat$TemperatureF, na.rm = TRUE),
+      temp = median(dat$TemperatureF, na.rm = TRUE),
+      temp_max = max(dat$TemperatureF, na.rm = TRUE),
+      temp_change = max(dat$TemperatureF, na.rm = TRUE) -
+                    min(dat$TemperatureF, na.rm = TRUE),
+      dew = median(dat$Dew_PointF, na.rm = TRUE),
+      humidity = median(dat$Humidity, na.rm = TRUE),
+      pressure = median(dat$Sea_Level_PressureIn, na.rm = TRUE),
+      pressure_change = max(dat$Sea_Level_PressureIn, na.rm = TRUE) -
+                        min(dat$Sea_Level_PressureIn, na.rm = TRUE),
+      wind = median(dat$Wind_SpeedMPH, na.rm = TRUE),
+      wind_max = max(dat$Wind_SpeedMPH, na.rm = TRUE),
+      gust = median(dat$Gust_SpeedMPH, na.rm = TRUE),
+      gust_max = max(dat$Gust_SpeedMPH, na.rm = TRUE),
+      percip = median(dat$PrecipitationIn, na.rm = TRUE),
+      percip_max = max(dat$PrecipitationIn, na.rm = TRUE),
+      weather_rain = weather_rain,
+      weather_snow = weather_snow,
+      weather_cloud = weather_cloud,
+      weather_storm = weather_storm
+    )
+  
+  out
+}
+```
+```{r weather_values}
+weather_data <- 
+  raw_weather %>%
+  mutate(date = as.Date(Time)) %>%
+  group_by(date) %>%
+  do(summarized_weather(.))
+weather_data
+
+weather_cols <- names(weather_data)[names(weather_data) != "date"]
+
+# There is a missing day on 2009-06-11. We'll do an average of 2 days on each side:
+imp_data <-
+  weather_data %>% 
+  ungroup() %>% 
+  dplyr::filter(date %in% ymd(c("2009-06-09", "2009-06-10", "2009-06-12", "2009-06-13"))) %>% 
+  summarise_all(mean)
+
+weather_data <- 
+  weather_data %>% 
+  bind_rows(imp_data) %>% 
+  arrange(date)
+
+
+var_sets$weather <- names(weather_data)[names(weather_data) != "date"]
+```
+
+## Date and holiday predictors
+
+```{r dates_holidays}
+year_num <- unique(year(entries$date))
+holidays <- listHolidays()
+holidays <- holidays[!grepl("^(CH|GB|DE|FR|IT|CA|JP)", holidays)]
+## Some are duplicated with US and general holidays
+holidays <- holidays[!(holidays %in% c("ChristmasDay", "NewYearsDay", "GoodFriday", "LaborDay"))]
+
+rec <- 
+  recipe(~ date, data = entries) %>%
+  step_date(date, features = c("dow", "doy", "week", "month", "year")) %>%
+  step_holiday(date, holidays = holidays)
+rec <- prep(rec, entries, retain = TRUE)
+date_pred <- juice(rec)
+names(date_pred) <- gsub("^date_", "", names(date_pred))
+
+## Add a few more:
+thx <- date_pred$date[date_pred$USThanksgivingDay == 1] 
+date_pred <- date_pred %>%
+  mutate(
+    Day_after_Thx = ifelse(date %in% (thx + days(1)), 1, 0),
+    Jan02_Mon_Fri = 
+      ifelse(
+        month(date) == 1 &
+          day(date) == 2 &
+          dow %in% c("Mon", "Fri"),
+        1, 0
+      ),
+    Jul03_Mon_Fri = 
+      ifelse(
+        month(date) == 7 &
+          day(date) == 3 &
+          dow %in% c("Mon", "Fri"),
+        1, 0
+      ),
+    Jul05_Mon_Fri = 
+      ifelse(
+        month(date) == 7 &
+          day(date) == 5 &
+          dow %in% c("Mon", "Fri"),
+        1, 0
+      ),
+    Dec26_wkday = 
+      ifelse(
+        month(date) == 12 &
+          day(date) == 26 &
+          dow %in% c("Mon", "Tues", "Wed", "Thurs", "Fri"),
+        1, 0
+      ),
+    Dec31_Mon_Fri = 
+      ifelse(
+        month(date) == 12 &
+          day(date) == 31 &
+          dow %in% c("Mon", "Fri"),
+        1, 0
+      )
+  )
+
+var_sets$dates = c('dow', 'doy', 'week', 'month')
+var_sets$holidays <- c(holidays, 'Jan02_Mon_Fri', 'Jul03_Mon_Fri', 
+                       'Jul05_Mon_Fri', 'Day_after_Thx',
+                      'Dec26_wkday', 'Dec31_Mon_Fri')
+```
+
+## Sporting Events
+
+Non-baseball sports data were scraped off of websites to get the home and away game days and are stored in Excel files. Baseball data was obtained via the R interface to [retrosheet](http://www.retrosheet.org/). 
+
+A simple set of features are used that are binary indicators for home and away games. Post-season games are included although their dates might not be known well enough in advance to put into a model. 
+
+```{r sports}
+blackhawks <- 
+  read_excel("bh_sched.xlsx") %>%
+  rename(date = Date) %>%
+  mutate(Away = grepl("^@", Where)) %>% 
+  select(-Where) %>%
+  rename(Blackhawks_Against = Against, Blackhawks_Away = Away)
+
+blackhawks_away <- 
+  blackhawks %>%
+  filter(Blackhawks_Away) %>%
+  mutate(Blackhawks_Away = 1) %>%
+  select(-Blackhawks_Against)
+
+blackhawks_home <- 
+  blackhawks %>%
+  filter(!Blackhawks_Away) %>%
+  mutate(Blackhawks_Home = 1) %>%
+  select(-Blackhawks_Against, -Blackhawks_Away)
+
+
+bulls <- 
+  read_excel("bulls_sched.xlsx") %>%
+  rename(date = Date) %>%
+  # date format is "Sun, Nov 19, 2000"
+  mutate(date = parse_date_time(date, "a, m d, y")) %>%
+  mutate(Away = grepl("^@", Where)) %>% 
+  select(-Where, -X__1) %>%
+  rename(Bulls_Against = Against, Bulls_Away = Away)
+
+bulls_away <- 
+  bulls %>%
+  filter(Bulls_Away) %>%
+  mutate(Bulls_Away = 1) %>%
+  select(-Bulls_Against)
+
+bulls_home <- 
+  bulls %>%
+  filter(!Bulls_Away) %>%
+  mutate(Bulls_Home = 1) %>%
+  select(-Bulls_Against, -Bulls_Away)
+
+
+bears <- 
+  read_excel("bears_sched.xlsx") %>%
+  rename(date = Date) %>%
+  mutate(Away = grepl("^@", Location)) %>% 
+  mutate(Against = gsub("@ ", "", Location)) %>%
+  select(-Location, -Venue, -Attendance, -preseason) %>%
+  rename(Bears_Against = Against, Bears_Away = Away)
+
+bears_away <- 
+  bears %>%
+  filter(Bears_Away) %>%
+  mutate(Bears_Away = 1) %>%
+  select(-Bears_Against)
+
+bears_home <- 
+  bears %>%
+  filter(!Bears_Away) %>%
+  mutate(Bears_Home = 1) %>%
+  select(-Bears_Against, -Bears_Away)
+
+
+years <- 2001:2016
+bball <- vector(mode = "list", length = length(years))
+
+for (i in seq_along(years)) {
+  bball[[i]] <- getRetrosheet("game", years[i]) %>%
+    filter(VisTm %in% c("CHA", "CHN") |
+             HmTm %in% c("CHA", "CHN")) %>%
+    mutate(date = ymd(paste(Date))) %>%
+    select(date, VisTm, HmTm) %>%
+    group_by(date) %>%
+    summarise(
+      WhiteSox_Away = ifelse(any(VisTm == "CHA"), 1, 0),
+      WhiteSox_Home = ifelse(any(HmTm == "CHA"), 1, 0),
+      Cubs_Away = ifelse(any(VisTm == "CHN"), 1, 0),
+      Cubs_Home = ifelse(any(HmTm == "CHN"), 1, 0)
+    ) 
+}
+
+baseball <- 
+  bind_rows(bball) %>%
+  mutate(date = as.POSIXct(date))
+
+all_dates <- 
+  data.frame(date = seq(ymd('2001-01-01'), ymd('2016-09-12'), by = 'days')) %>%
+  mutate(date = as.POSIXct(date))
+
+sports <- 
+  blackhawks_away %>% 
+  full_join(blackhawks_home) %>% 
+  full_join(bulls_away) %>% 
+  full_join(bulls_home) %>% 
+  full_join(bears_away) %>% 
+  full_join(bears_home) %>%
+  full_join(baseball) %>%
+  full_join(all_dates) %>%
+  mutate(Blackhawks_Away = ifelse(is.na(Blackhawks_Away), 0, 1),
+         Blackhawks_Home = ifelse(is.na(Blackhawks_Home), 0, 1),
+         Bulls_Away = ifelse(is.na(Bulls_Away), 0, 1),
+         Bulls_Home = ifelse(is.na(Bulls_Home), 0, 1),
+         Bears_Away = ifelse(is.na(Bears_Away), 0, 1),
+         Bears_Home = ifelse(is.na(Bears_Home), 0, 1),
+         Cubs_Away = ifelse(is.na(Cubs_Away), 0, 1),
+         Cubs_Home = ifelse(is.na(Cubs_Home), 0, 1),
+         WhiteSox_Away = ifelse(is.na(WhiteSox_Away), 0, 1),
+         WhiteSox_Home = ifelse(is.na(WhiteSox_Home), 0, 1)) %>%
+  arrange(date) %>%
+  filter(date >= ymd("2001-01-01") & date < ymd("2016-09-12")) %>%
+  mutate(date = as.Date(date))
+
+var_sets$sports <- names(sports)[names(sports) != "date"]
+```
+
+## Gas Prices
+
+These data are also collected in an external file. the data is weekly, so they values will be merged in my week and year and will be constant throughout the week. When merged in, it will have to be joined after the `date_pred` object since it has `week` and `year`. 
+
+```{r gas}
+gas_pred <- 
+  read_csv(file = "Chicago_gas_prices.csv") %>%
+  mutate(date = mdy(date),
+         date = date + days(14),
+         week = week(date),
+         year = year(date)) %>%
+  select(-date) %>%
+  rename(l14_gas_price = gas_price)
+
+gas_pred
+
+var_sets$gas <- "l14_gas_price"
+
+```
+
+## Employment Prices
+
+These data are reported in one month intervals. A one-month lag is used:
+
+```{r employment}
+employ_pred <- 
+  read_csv(file = "Chicago_employment.csv") %>%
+  mutate(date = paste(year, month, "01", sep = "-"),
+         date = ymd(date),
+         nextMonth = month(date) + 1,
+         nextYear = ifelse(nextMonth == 13, year+1, year),
+         newMonth = ifelse(nextMonth == 13, 1, nextMonth),
+         date = paste(nextYear, newMonth, "01", sep = "-"),
+         date = ymd(date),
+         month = month(date, abbr = TRUE, label = TRUE),
+         month = factor(as.character(month), levels = levels(date_pred$month)),
+         year = year(date)) %>%
+  rename(l30_unemployment_rate = unemployment_rate) %>%
+  select(year, month, l30_unemployment_rate)
+var_sets$employment <- "l30_unemployment_rate"
+```
+
+## All predictors
+
+```{r merged}
+all_pred <-
+  inner_join(entries[, c("date", "s_40380")], date_pred) %>%
+  inner_join(lag_pred) %>%
+  inner_join(weather_data) %>%
+  inner_join(sports) %>%
+  left_join(gas_pred) %>%
+  left_join(employ_pred)
+
+# all_pred has week=53 which corresponds to December 31 for non-leap years and 
+# December 30 and 31 for leap years.
+# Because gas price data is by week, it only has week 53 week data when the 
+# 14 week lag lands on 12/30 or 12/31.  Need to impute week 53 data when it 
+# is missing.
+
+missing_gas <- which(is.na(all_pred$l14_gas_price))
+missing_gas_previous <- missing_gas - 1
+all_pred$l14_gas_price[missing_gas] <- all_pred$l14_gas_price[missing_gas_previous]
+missing_gas <- which(is.na(all_pred$l14_gas_price))
+missing_gas_previous <- missing_gas - 1
+all_pred$l14_gas_price[missing_gas] <- all_pred$l14_gas_price[missing_gas_previous]
+
+# check again
+## currently from the weather data. 
+table(diff(as.numeric(all_pred$date)))
+```
+
+## Resampling
+
+
+We will create an intial set of days to use for the first analysis set. The first assessment set is the following 14 days. The second analysis is the first plus the first assessment set. The second assessment set is the following 14 days and so on. 
+
+```{r resamples_and_save}
+test_dates <- max(all_pred$date) - days(0:13)
+max_train_date <- min(test_dates) - days(1)
+
+rs_week_length <- 52 * 7 * 2    # weeks * days in week  * holdout weeks
+rs_days <- max_train_date - days(1:(rs_week_length - 1))
+
+training <- all_pred %>%
+  filter(date <= max_train_date)
+testing <- all_pred %>%
+  filter(date %in% test_dates)
+
+train_days <- training$date 
+training$date <- NULL
+
+### 
+
+analysis_set <- vector(mode = "list", length = 52)
+assessment_set <- vector(mode = "list", length = 52)
+
+for (i in 1:52) {
+  if (i == 1) {
+    bot_date <- min(rs_days)
+  } else {
+    bot_date <- top_date + days(1)
+  }
+  
+  top_date <- bot_date + days(13)
+  cat(as.character(bot_date), ":", as.character(top_date), "\n")
+  
+  analysis_set[[i]] <- 1:which.min(train_days < bot_date)
+  assessment_set[[i]] <- which(train_days <= top_date & train_days >= bot_date)
+
+  names(analysis_set)[i] <- as.character(bot_date)
+  names(assessment_set)[i] <- as.character(bot_date)  
+}
+min(test_dates)
+
+###
+
+ctrl <- 
+  trainControl(method = "timeslice", 
+               initialWindow = length(analysis_set[[1]]), 
+               horizon = 2*7,
+               fixedWindow = FALSE,
+               savePredictions = "final",
+               returnResamp = "final",
+               returnData = FALSE,
+               verboseIter = TRUE,
+               index = analysis_set,
+               indexOut = assessment_set,
+               predictionBounds = c(0, NA),
+               trim = TRUE)
+
+save(all_pred, date_pred, lag_pred, 
+     weather_data, sports, 
+     var_sets,
+     ctrl, training, testing,
+     train_days, 
+     file = "chicago.RData",
+     compress = TRUE)
+```
+
+# Session
+
+```{r session}
+sessionInfo()
+```

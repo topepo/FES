@@ -1,0 +1,113 @@
+
+R version 3.5.2 (2018-12-20) -- "Eggshell Igloo"
+Copyright (C) 2018 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(tidyverse)
+── Attaching packages ─────────────────────────────────────── tidyverse 1.2.1 ──
+✔ ggplot2 3.1.0     ✔ purrr   0.2.5
+✔ tibble  2.0.0     ✔ dplyr   0.7.8
+✔ tidyr   0.8.2     ✔ stringr 1.3.1
+✔ readr   1.1.1     ✔ forcats 0.3.0
+── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+✖ dplyr::filter() masks stats::filter()
+✖ dplyr::lag()    masks stats::lag()
+> library(rsample)
+> 
+> # data at https://archive.ics.uci.edu/ml/datasets/Parkinson%27s+Disease+Classification#
+> 
+> pd_speech <-
++   read_csv("pd_speech_features.csv", skip = 1) %>%
++   group_by(id) %>%
++   summarise_all(mean) %>%
++   mutate(
++     class = factor(
++       ifelse(class == 1, "PD", "control"),
++       levels = c("PD", "control")
++     )
++   ) %>%
++   dplyr::select(-id, -numPulses, -numPeriodsPulses, male = gender, Class = class)
+Parsed with column specification:
+cols(
+  .default = col_double(),
+  id = col_integer(),
+  gender = col_integer(),
+  numPulses = col_integer(),
+  numPeriodsPulses = col_integer(),
+  class = col_integer()
+)
+See spec(...) for full column specifications.
+> 
+> save(pd_speech, file = "pd_data.RData")
+> 
+> # For our analyses, only look at scored numeric predictors ---------------------
+> 
+> pd_speech <-
++   pd_speech %>%
++   dplyr::select(-male)
+> 
+> # Split the data ---------------------------------------------------------------
+> 
+> set.seed(825)
+> pd_split <- initial_split(pd_speech, prop = 0.75)
+> 
+> pd_tr <- training(pd_split)
+> pd_te <-  testing(pd_split)
+> 
+> save(pd_tr, pd_te, file = "pd_split.RData")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> sessionInfo()
+R version 3.5.2 (2018-12-20)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS High Sierra 10.13.6
+
+Matrix products: default
+BLAS: /Library/Frameworks/R.framework/Versions/3.5/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.5/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] bindrcpp_0.2.2  rsample_0.0.4   forcats_0.3.0   stringr_1.3.1  
+ [5] dplyr_0.7.8     purrr_0.2.5     readr_1.1.1     tidyr_0.8.2    
+ [9] tibble_2.0.0    ggplot2_3.1.0   tidyverse_1.2.1
+
+loaded via a namespace (and not attached):
+ [1] Rcpp_1.0.0       cellranger_1.1.0 pillar_1.3.1     compiler_3.5.2  
+ [5] plyr_1.8.4       bindr_0.1.1      tools_3.5.2      jsonlite_1.6    
+ [9] lubridate_1.7.4  gtable_0.2.0     nlme_3.1-137     lattice_0.20-38 
+[13] pkgconfig_2.0.2  rlang_0.3.0.1    cli_1.0.1        rstudioapi_0.8  
+[17] haven_1.1.2      withr_2.1.2      xml2_1.2.0       httr_1.4.0      
+[21] generics_0.0.2   hms_0.4.2        grid_3.5.2       tidyselect_0.2.5
+[25] glue_1.3.0       R6_2.3.0         readxl_1.2.0     modelr_0.1.2    
+[29] magrittr_1.5     backports_1.1.3  scales_1.0.0     rvest_0.3.2     
+[33] assertthat_0.2.0 colorspace_1.3-2 stringi_1.2.4    lazyeval_0.2.1  
+[37] munsell_0.5.0    broom_0.5.1      crayon_1.3.4    
+> 
+> # ------------------------------------------------------------------------------
+> 
+> if (!interactive())
++   q("no")
+> proc.time()
+   user  system elapsed 
+  3.874   0.319   4.337 

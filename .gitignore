@@ -31,3 +31,6 @@ vignettes/*.pdf
 # Temporary files created by R markdown
 *.utf8.md
 *.knit.md
+.DS_Store
+Data_Sets/OkCupid/essays.RData
+Data_Sets/OkCupid/profiles.csv
