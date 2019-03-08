@@ -144,6 +144,8 @@ missing_stations <- names(num_missing)[num_missing > 0]
 entries <- 
   entries %>%
   dplyr::select(-!!missing_stations)
+
+save(entries, file = "chicago_entries.RData", compress = TRUE)
 ```
 
 ## Lagging the Data
@@ -371,7 +373,7 @@ bulls <-
   # date format is "Sun, Nov 19, 2000"
   mutate(date = parse_date_time(date, "a, m d, y")) %>%
   mutate(Away = grepl("^@", Where)) %>% 
-  select(-Where, -X__1) %>%
+  select(-Where) %>%
   rename(Bulls_Against = Against, Bulls_Away = Away)
 
 bulls_away <- 
@@ -595,6 +597,7 @@ save(all_pred, date_pred, lag_pred,
      var_sets,
      ctrl, training, testing,
      train_days, 
+     stations,
      file = "chicago.RData",
      compress = TRUE)
 ```
