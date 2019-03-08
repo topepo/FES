@@ -242,7 +242,7 @@ basic_features_down <-
     okc_down$essays,
     normalize = FALSE,
     export = FALSE,
-    word2vec_dims = 0,
+    word_dims = 0,
     threads = 4
   ) %>%
   dplyr::select(-n_caps, -id, -n_nonasciis, -n_capsp) %>%
