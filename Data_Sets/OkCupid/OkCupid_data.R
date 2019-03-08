@@ -165,7 +165,7 @@ for (i in speaks_values)
 raw$speaks <- NULL
 
 # ------------------------------------------------------------------------------
-## Similaly, ethnicity is pre-split into dummy variables
+## Similarly, ethnicity is pre-split into dummy variables
 
 tmp_eth <- gsub(", ", ",", raw$ethnicity)
 tmp_eth <- gsub("/ ", "", tmp_eth)
@@ -174,7 +174,7 @@ tmp_eth_split <- strsplit(tmp_eth, split = ",")
 eth_lvl <- sort(unique(unlist(tmp_eth_split)))
 for (i in eth_lvl) 
   raw[, i] <- ifelse(
-    map_chr(tmp_speaks_split, function(x, eth) any(x == eth), eth = i), 
+    map_chr(tmp_eth_split, function(x, eth) any(x == eth), eth = i), 
     1, 0
   )
 raw$ethnicity <- NULL
