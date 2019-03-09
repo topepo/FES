@@ -30,10 +30,10 @@ Loading required package: lattice
 Loading required package: ggplot2
 > library(tidymodels)
 ── Attaching packages ────────────────────────────────────── tidymodels 0.0.2 ──
-✔ broom     0.5.1     ✔ purrr     0.2.5
+✔ broom     0.5.1     ✔ purrr     0.3.0
 ✔ dials     0.0.2     ✔ recipes   0.1.4
 ✔ dplyr     0.7.8     ✔ rsample   0.0.4
-✔ infer     0.4.0     ✔ tibble    2.0.0
+✔ infer     0.4.0     ✔ tibble    2.0.1
 ✔ parsnip   0.0.1     ✔ yardstick 0.0.2
 ── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
 ✖ purrr::discard()       masks scales::discard()
@@ -87,7 +87,9 @@ Loading required package: ggplot2
 > ## Unpackage the data and read in. A compressed version of the csv
 > ## file is at https://github.com/rudeboybert/JSE_OkCupid
 > 
-> raw <- read.csv("profiles.csv", stringsAsFactors = FALSE)
+> raw <- 
++   read.csv("profiles.csv", stringsAsFactors = FALSE) %>% 
++   dplyr::select(-sex, -body_type, -orientation)
 > 
 > # ------------------------------------------------------------------------------
 > ## Compute the number of days since last online
@@ -99,7 +101,6 @@ Loading required package: ggplot2
 > # ------------------------------------------------------------------------------
 > ## encode the "easy" categorical predictors
 > 
-> raw$body_type <- fix_levels(raw$body_type, "body_type_missing")
 > raw$drinks <- fix_levels(raw$drinks, "drinks_missing")
 > raw$drugs <- fix_levels(raw$drugs, "drugs_missing")
 > raw$education <- fix_levels(raw$education, "ed_missing")
@@ -107,12 +108,8 @@ Loading required package: ggplot2
 > raw$job <- fix_levels(raw$job, "missing")
 > raw$offspring <- fix_levels(raw$offspring, "kids_missing")
 > raw$pets <- fix_levels(raw$pets, "pets_missing")
-> raw$orientation <- fix_levels(raw$orientation)
 > raw$smokes <- fix_levels(raw$smokes, "smokes_missing")
 > raw$status <- fix_levels(raw$status)
-> 
-> raw$male <- ifelse(raw$sex == "m", 1, 0)
-> raw$sex <- NULL
 > 
 > # ------------------------------------------------------------------------------
 > ## Income is basically encoded categorical so we will make it a factor
@@ -216,7 +213,7 @@ Loading required package: ggplot2
 > eth_lvl <- sort(unique(unlist(tmp_eth_split)))
 > for (i in eth_lvl) 
 +   raw[, i] <- ifelse(
-+     map_chr(tmp_speaks_split, function(x, eth) any(x == eth), eth = i), 
++     map_chr(tmp_eth_split, function(x, eth) any(x == eth), eth = i), 
 +     1, 0
 +   )
 > raw$ethnicity <- NULL
@@ -485,7 +482,7 @@ Joining, by = "word"
  collate  en_US.UTF-8                 
  ctype    en_US.UTF-8                 
  tz       America/New_York            
- date     2019-01-08                  
+ date     2019-02-04                  
 
 ─ Packages ───────────────────────────────────────────────────────────────────
  package       * version    date       lib
@@ -497,7 +494,7 @@ Joining, by = "word"
  bindrcpp      * 0.2.2      2018-03-29 [1]
  broom         * 0.5.1      2018-12-05 [1]
  callr           3.1.1      2018-12-21 [1]
- caret         * 6.0-81     2018-11-20 [1]
+ caret         * 6.0-82     2019-02-04 [1]
  class           7.3-14     2015-08-30 [1]
  cli             1.0.1      2018-09-25 [1]
  codetools       0.2-15     2016-10-05 [1]
@@ -529,6 +526,7 @@ Joining, by = "word"
  ipred           0.9-8      2018-11-05 [1]
  iterators       1.0.10     2018-07-13 [1]
  janeaustenr     0.1.5      2017-06-10 [1]
+ knitr           1.20       2018-02-20 [1]
  later           0.7.5      2018-09-18 [1]
  lattice       * 0.20-38    2018-11-04 [1]
  lava            1.6.4      2018-11-25 [1]
@@ -560,12 +558,12 @@ Joining, by = "word"
  prodlim         2018.04.18 2018-04-18 [1]
  promises        1.0.1      2018-04-13 [1]
  ps              1.2.1      2018-11-06 [1]
- purrr         * 0.2.5      2018-05-29 [1]
+ purrr         * 0.3.0      2019-01-27 [1]
  R6              2.3.0      2018-10-04 [1]
  Rcpp            1.0.0      2018-11-07 [1]
  recipes       * 0.1.4      2018-11-19 [1]
  reshape2        1.4.3      2017-12-11 [1]
- rlang           0.3.0.1    2018-10-25 [1]
+ rlang           0.3.1      2019-01-08 [1]
  rpart           4.1-13     2018-02-23 [1]
  rsample       * 0.0.4      2019-01-06 [1]
  rsconnect       0.8.11     2018-11-12 [1]
@@ -587,10 +585,10 @@ Joining, by = "word"
  syuzhet         1.0.4      2017-12-14 [1]
  textfeatures  * 0.1.4      2018-08-30 [1]
  threejs         0.3.1      2017-08-13 [1]
- tibble        * 2.0.0      2019-01-05 [1]
+ tibble        * 2.0.1      2019-01-12 [1]
  tidymodels    * 0.0.2      2018-11-27 [1]
  tidyposterior   0.0.2.9000 2018-11-16 [1]
- tidypredict     0.2.1      2018-12-20 [1]
+ tidypredict     0.3.0      2019-01-10 [1]
  tidyr         * 0.8.2      2018-10-28 [1]
  tidyselect      0.2.5      2018-10-11 [1]
  tidytext      * 0.2.0      2018-10-17 [1]
@@ -610,10 +608,11 @@ Joining, by = "word"
  CRAN (R 3.5.0)                        
  CRAN (R 3.5.0)                        
  CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
+ local                                 
  CRAN (R 3.5.2)                        
  CRAN (R 3.5.0)                        
  CRAN (R 3.5.2)                        
+ CRAN (R 3.5.0)                        
  CRAN (R 3.5.0)                        
  CRAN (R 3.5.0)                        
  CRAN (R 3.5.0)                        
@@ -673,12 +672,12 @@ Joining, by = "word"
  CRAN (R 3.5.0)                        
  CRAN (R 3.5.0)                        
  CRAN (R 3.5.0)                        
+ CRAN (R 3.5.2)                        
  CRAN (R 3.5.0)                        
  CRAN (R 3.5.0)                        
  CRAN (R 3.5.0)                        
  CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
+ CRAN (R 3.5.2)                        
  CRAN (R 3.5.0)                        
  local                                 
  CRAN (R 3.5.0)                        
@@ -700,10 +699,10 @@ Joining, by = "word"
  CRAN (R 3.5.0)                        
  Github (mkearney/textfeatures@ce68575)
  CRAN (R 3.5.0)                        
- Github (tidyverse/tibble@d06dd5c)     
+ CRAN (R 3.5.2)                        
  CRAN (R 3.5.2)                        
  local                                 
- CRAN (R 3.5.0)                        
+ CRAN (R 3.5.2)                        
  CRAN (R 3.5.0)                        
  CRAN (R 3.5.0)                        
  CRAN (R 3.5.0)                        
@@ -720,5 +719,5 @@ Joining, by = "word"
 > if (!interactive())
 +   q("no")
 > proc.time()
-    user   system  elapsed 
- 933.977   22.120 1001.800 
+   user  system elapsed 
+390.254  10.333 400.597 

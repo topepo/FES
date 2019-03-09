@@ -45,7 +45,9 @@ resort_lvl <- function(x) {
 ## Unpackage the data and read in. A compressed version of the csv
 ## file is at https://github.com/rudeboybert/JSE_OkCupid
 
-raw <- read.csv("profiles.csv", stringsAsFactors = FALSE)
+raw <- 
+  read.csv("profiles.csv", stringsAsFactors = FALSE) %>% 
+  dplyr::select(-sex, -body_type, -orientation)
 
 # ------------------------------------------------------------------------------
 ## Compute the number of days since last online
@@ -57,7 +59,6 @@ raw$last_online <- as.numeric(tmp_last)
 # ------------------------------------------------------------------------------
 ## encode the "easy" categorical predictors
 
-raw$body_type <- fix_levels(raw$body_type, "body_type_missing")
 raw$drinks <- fix_levels(raw$drinks, "drinks_missing")
 raw$drugs <- fix_levels(raw$drugs, "drugs_missing")
 raw$education <- fix_levels(raw$education, "ed_missing")
@@ -65,12 +66,8 @@ raw$diet <- fix_levels(raw$diet,"diet_missing")
 raw$job <- fix_levels(raw$job, "missing")
 raw$offspring <- fix_levels(raw$offspring, "kids_missing")
 raw$pets <- fix_levels(raw$pets, "pets_missing")
-raw$orientation <- fix_levels(raw$orientation)
 raw$smokes <- fix_levels(raw$smokes, "smokes_missing")
 raw$status <- fix_levels(raw$status)
-
-raw$male <- ifelse(raw$sex == "m", 1, 0)
-raw$sex <- NULL
 
 # ------------------------------------------------------------------------------
 ## Income is basically encoded categorical so we will make it a factor
@@ -165,7 +162,7 @@ for (i in speaks_values)
 raw$speaks <- NULL
 
 # ------------------------------------------------------------------------------
-## Similarly, ethnicity is pre-split into dummy variables
+## Similaly, ethnicity is pre-split into dummy variables
 
 tmp_eth <- gsub(", ", ",", raw$ethnicity)
 tmp_eth <- gsub("/ ", "", tmp_eth)
