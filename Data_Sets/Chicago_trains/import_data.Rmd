@@ -118,6 +118,8 @@ station_cols <- names(entries)[-1]
 station_cols <- paste0("s_", station_cols)
 
 entries <- setNames(entries, c("date", station_cols))
+
+save(entries, file = "chicago_entries.RData", compress = TRUE)
 ```
 
 Are the dates consecutive? 
@@ -144,8 +146,6 @@ missing_stations <- names(num_missing)[num_missing > 0]
 entries <- 
   entries %>%
   dplyr::select(-!!missing_stations)
-
-save(entries, file = "chicago_entries.RData", compress = TRUE)
 ```
 
 ## Lagging the Data

@@ -250,7 +250,9 @@ length(vol_exclusions)</code></pre>
 station_cols &lt;- names(entries)[-1]
 station_cols &lt;- paste0(&quot;s_&quot;, station_cols)
 
-entries &lt;- setNames(entries, c(&quot;date&quot;, station_cols))</code></pre>
+entries &lt;- setNames(entries, c(&quot;date&quot;, station_cols))
+
+save(entries, file = &quot;chicago_entries.RData&quot;, compress = TRUE)</code></pre>
 <p>Are the dates consecutive?</p>
 <pre class="r"><code>table(diff(as.numeric(entries$date)))</code></pre>
 <pre><code>## 
@@ -276,9 +278,7 @@ diff(which(is.na(entries$s_40190)))</code></pre>
 <pre class="r"><code>missing_stations &lt;- names(num_missing)[num_missing &gt; 0]
 entries &lt;- 
   entries %&gt;%
-  dplyr::select(-!!missing_stations)
-
-save(entries, file = &quot;chicago_entries.RData&quot;, compress = TRUE)</code></pre>
+  dplyr::select(-!!missing_stations)</code></pre>
 </div>
 <div id="lagging-the-data" class="section level2">
 <h2>Lagging the Data</h2>
