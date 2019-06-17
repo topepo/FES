@@ -1,6 +1,6 @@
 
-R version 3.5.2 (2018-12-20) -- "Eggshell Igloo"
-Copyright (C) 2018 The R Foundation for Statistical Computing
+R Under development (unstable) (2019-03-18 r76245) -- "Unsuffered Consequences"
+Copyright (C) 2019 The R Foundation for Statistical Computing
 Platform: x86_64-apple-darwin15.6.0 (64-bit)
 
 R is free software and comes with ABSOLUTELY NO WARRANTY.
@@ -28,13 +28,21 @@ The following object is masked from ‘package:base’:
 > library(caret)
 Loading required package: lattice
 Loading required package: ggplot2
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
 > library(tidymodels)
+Registered S3 method overwritten by 'xts':
+  method     from
+  as.zoo.xts zoo 
 ── Attaching packages ────────────────────────────────────── tidymodels 0.0.2 ──
-✔ broom     0.5.1     ✔ purrr     0.3.0
-✔ dials     0.0.2     ✔ recipes   0.1.4
-✔ dplyr     0.7.8     ✔ rsample   0.0.4
-✔ infer     0.4.0     ✔ tibble    2.0.1
-✔ parsnip   0.0.1     ✔ yardstick 0.0.2
+✔ broom     0.5.1       ✔ purrr     0.3.2  
+✔ dials     0.0.2       ✔ recipes   0.1.5  
+✔ dplyr     0.8.0.1     ✔ rsample   0.0.4  
+✔ infer     0.4.0       ✔ tibble    2.1.1  
+✔ parsnip   0.0.2       ✔ yardstick 0.0.2  
 ── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
 ✖ purrr::discard()       masks scales::discard()
 ✖ dplyr::filter()        masks stats::filter()
@@ -251,7 +259,7 @@ Loading required package: ggplot2
 +     okc$essays,
 +     normalize = FALSE,
 +     export = FALSE,
-+     word2vec_dims = 0,
++     word_dims = 0,
 +     threads = 4
 +   ) %>%
 +   dplyr::select(-n_caps, -id, -n_nonasciis, -n_capsp, -n_chars) %>%
@@ -281,7 +289,7 @@ Loading required package: ggplot2
 +     okc_down$essays,
 +     normalize = FALSE,
 +     export = FALSE,
-+     word2vec_dims = 0,
++     word_dims = 0,
 +     threads = 4
 +   ) %>%
 +   dplyr::select(-n_caps, -id, -n_nonasciis, -n_capsp) %>%
@@ -473,251 +481,137 @@ Joining, by = "word"
 > 
 > print(session_info())
 ─ Session info ───────────────────────────────────────────────────────────────
- setting  value                       
- version  R version 3.5.2 (2018-12-20)
- os       macOS High Sierra 10.13.6   
- system   x86_64, darwin15.6.0        
- ui       X11                         
- language (EN)                        
- collate  en_US.UTF-8                 
- ctype    en_US.UTF-8                 
- tz       America/New_York            
- date     2019-02-04                  
+ setting  value                                             
+ version  R Under development (unstable) (2019-03-18 r76245)
+ os       macOS High Sierra 10.13.6                         
+ system   x86_64, darwin15.6.0                              
+ ui       X11                                               
+ language (EN)                                              
+ collate  en_US.UTF-8                                       
+ ctype    en_US.UTF-8                                       
+ tz       America/New_York                                  
+ date     2019-04-04                                        
 
 ─ Packages ───────────────────────────────────────────────────────────────────
- package       * version    date       lib
- assertthat      0.2.0      2017-04-11 [1]
- backports       1.1.3      2018-12-14 [1]
- base64enc       0.1-3      2015-07-28 [1]
- bayesplot       1.6.0      2018-08-02 [1]
- bindr           0.1.1      2018-03-13 [1]
- bindrcpp      * 0.2.2      2018-03-29 [1]
- broom         * 0.5.1      2018-12-05 [1]
- callr           3.1.1      2018-12-21 [1]
- caret         * 6.0-82     2019-02-04 [1]
- class           7.3-14     2015-08-30 [1]
- cli             1.0.1      2018-09-25 [1]
- codetools       0.2-15     2016-10-05 [1]
- colorspace      1.3-2      2016-12-14 [1]
- colourpicker    1.0        2017-09-27 [1]
- crayon          1.3.4      2017-09-16 [1]
- crosstalk       1.0.0      2016-12-21 [1]
- data.table      1.11.8     2018-09-30 [1]
- dials         * 0.0.2      2018-12-09 [1]
- digest          0.6.18     2018-10-10 [1]
- dplyr         * 0.7.8      2018-11-10 [1]
- DT              0.5        2018-11-05 [1]
- dygraphs        1.1.1.6    2018-07-11 [1]
- foreach         1.4.4      2017-12-12 [1]
- generics        0.0.2      2018-11-29 [1]
- ggplot2       * 3.1.0      2018-10-25 [1]
- ggridges        0.5.1      2018-09-27 [1]
- glue            1.3.0      2018-07-17 [1]
- gower           0.1.2      2017-02-23 [1]
- gridExtra       2.3        2017-09-09 [1]
- gtable          0.2.0      2016-02-26 [1]
- gtools          3.8.1      2018-06-26 [1]
- htmltools       0.3.6      2017-04-28 [1]
- htmlwidgets     1.3        2018-09-30 [1]
- httpuv          1.4.5      2018-07-19 [1]
- igraph          1.2.2      2018-07-27 [1]
- infer         * 0.4.0      2018-11-15 [1]
- inline          0.3.15     2018-05-18 [1]
- ipred           0.9-8      2018-11-05 [1]
- iterators       1.0.10     2018-07-13 [1]
- janeaustenr     0.1.5      2017-06-10 [1]
- knitr           1.20       2018-02-20 [1]
- later           0.7.5      2018-09-18 [1]
- lattice       * 0.20-38    2018-11-04 [1]
- lava            1.6.4      2018-11-25 [1]
- lazyeval        0.2.1      2017-10-29 [1]
- lme4            1.1-19     2018-11-10 [1]
- loo             2.0.0      2018-04-11 [1]
- lubridate     * 1.7.4      2018-04-11 [1]
- magrittr        1.5        2014-11-22 [1]
- markdown        0.8        2017-04-20 [1]
- MASS            7.3-51.1   2018-11-01 [1]
- Matrix          1.2-15     2018-11-01 [1]
- matrixStats     0.54.0     2018-07-23 [1]
- mime            0.6        2018-10-05 [1]
- miniUI          0.1.1.1    2018-05-18 [1]
- minqa           1.2.4      2014-10-09 [1]
- ModelMetrics    1.2.2      2018-11-03 [1]
- munsell         0.5.0      2018-06-12 [1]
- nlme            3.1-137    2018-04-07 [1]
- nloptr          1.2.1      2018-10-03 [1]
- nnet            7.3-12     2016-02-02 [1]
- parsnip       * 0.0.1      2018-11-04 [1]
- pillar          1.3.1      2018-12-15 [1]
- pkgbuild        1.0.2      2018-10-16 [1]
- pkgconfig       2.0.2      2018-08-16 [1]
- plyr            1.8.4      2016-06-08 [1]
- prettyunits     1.0.2      2015-07-13 [1]
- pROC            1.13.0     2018-09-24 [1]
- processx        3.2.1      2018-12-05 [1]
- prodlim         2018.04.18 2018-04-18 [1]
- promises        1.0.1      2018-04-13 [1]
- ps              1.2.1      2018-11-06 [1]
- purrr         * 0.3.0      2019-01-27 [1]
- R6              2.3.0      2018-10-04 [1]
- Rcpp            1.0.0      2018-11-07 [1]
- recipes       * 0.1.4      2018-11-19 [1]
- reshape2        1.4.3      2017-12-11 [1]
- rlang           0.3.1      2019-01-08 [1]
- rpart           4.1-13     2018-02-23 [1]
- rsample       * 0.0.4      2019-01-06 [1]
- rsconnect       0.8.11     2018-11-12 [1]
- rstan           2.18.2     2018-11-07 [1]
- rstanarm        2.18.2     2018-11-10 [1]
- rstantools      1.5.1      2018-08-22 [1]
- rstudioapi      0.8        2018-10-02 [1]
- scales        * 1.0.0      2018-08-09 [1]
- sessioninfo   * 1.1.1      2018-11-05 [1]
- shiny           1.2.0      2018-11-02 [1]
- shinyjs         1.0        2018-01-08 [1]
- shinystan       2.5.0      2018-05-01 [1]
- shinythemes     1.1.2      2018-11-06 [1]
- SnowballC     * 0.5.1      2014-08-09 [1]
- StanHeaders     2.18.0     2018-10-07 [1]
- stringi         1.2.4      2018-07-20 [1]
- stringr         1.3.1      2018-05-10 [1]
- survival        2.43-3     2018-11-26 [1]
- syuzhet         1.0.4      2017-12-14 [1]
- textfeatures  * 0.1.4      2018-08-30 [1]
- threejs         0.3.1      2017-08-13 [1]
- tibble        * 2.0.1      2019-01-12 [1]
- tidymodels    * 0.0.2      2018-11-27 [1]
- tidyposterior   0.0.2.9000 2018-11-16 [1]
- tidypredict     0.3.0      2019-01-10 [1]
- tidyr         * 0.8.2      2018-10-28 [1]
- tidyselect      0.2.5      2018-10-11 [1]
- tidytext      * 0.2.0      2018-10-17 [1]
- timeDate        3043.102   2018-02-21 [1]
- tokenizers      0.2.1      2018-03-29 [1]
- withr           2.1.2      2018-03-15 [1]
- xtable          1.8-3      2018-08-29 [1]
- xts             0.11-2     2018-11-05 [1]
- yardstick     * 0.0.2      2018-11-05 [1]
- zoo             1.8-4      2018-09-19 [1]
- source                                
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- local                                 
- CRAN (R 3.5.2)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.2)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.2)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.2)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.2)                        
- local                                 
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.2)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.2)                        
- CRAN (R 3.5.0)                        
- local                                 
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.2)                        
- CRAN (R 3.5.0)                        
- Github (mkearney/textfeatures@ce68575)
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.2)                        
- CRAN (R 3.5.2)                        
- local                                 
- CRAN (R 3.5.2)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
- CRAN (R 3.5.0)                        
+ package       * version    date       lib source                            
+ assertthat      0.2.1      2019-03-21 [1] CRAN (R 3.6.0)                    
+ backports       1.1.3      2018-12-14 [1] CRAN (R 3.6.0)                    
+ base64enc       0.1-3      2015-07-28 [1] CRAN (R 3.6.0)                    
+ bayesplot       1.6.0      2018-08-02 [1] CRAN (R 3.6.0)                    
+ broom         * 0.5.1      2018-12-05 [1] CRAN (R 3.6.0)                    
+ callr           3.2.0      2019-03-15 [1] CRAN (R 3.6.0)                    
+ caret         * 6.0-82     2019-03-26 [1] CRAN (R 3.6.0)                    
+ class           7.3-15     2019-01-01 [1] CRAN (R 3.6.0)                    
+ cli             1.1.0      2019-03-19 [1] CRAN (R 3.6.0)                    
+ codetools       0.2-16     2018-12-24 [1] CRAN (R 3.6.0)                    
+ colorspace      1.4-1      2019-03-18 [1] CRAN (R 3.6.0)                    
+ colourpicker    1.0        2017-09-27 [1] CRAN (R 3.6.0)                    
+ crayon          1.3.4      2017-09-16 [1] CRAN (R 3.6.0)                    
+ crosstalk       1.0.0      2016-12-21 [1] CRAN (R 3.6.0)                    
+ data.table      1.12.0     2019-01-13 [1] CRAN (R 3.6.0)                    
+ dials         * 0.0.2      2018-12-09 [1] CRAN (R 3.6.0)                    
+ digest          0.6.18     2018-10-10 [1] CRAN (R 3.6.0)                    
+ dplyr         * 0.8.0.1    2019-02-15 [1] CRAN (R 3.6.0)                    
+ DT              0.5        2018-11-05 [1] CRAN (R 3.6.0)                    
+ dygraphs        1.1.1.6    2018-07-11 [1] CRAN (R 3.6.0)                    
+ foreach         1.4.4      2017-12-12 [1] CRAN (R 3.6.0)                    
+ generics        0.0.2      2018-11-29 [1] CRAN (R 3.6.0)                    
+ ggplot2       * 3.1.0      2018-10-25 [1] CRAN (R 3.6.0)                    
+ ggridges        0.5.1      2018-09-27 [1] CRAN (R 3.6.0)                    
+ glue            1.3.1      2019-03-12 [1] CRAN (R 3.6.0)                    
+ gower           0.2.0      2019-03-07 [1] CRAN (R 3.6.0)                    
+ gridExtra       2.3        2017-09-09 [1] CRAN (R 3.6.0)                    
+ gtable          0.2.0      2016-02-26 [1] CRAN (R 3.6.0)                    
+ gtools          3.8.1      2018-06-26 [1] CRAN (R 3.6.0)                    
+ htmltools       0.3.6      2017-04-28 [1] CRAN (R 3.6.0)                    
+ htmlwidgets     1.3        2018-09-30 [1] CRAN (R 3.6.0)                    
+ httpuv          1.4.5.1    2018-12-18 [1] CRAN (R 3.6.0)                    
+ igraph          1.2.4      2019-02-13 [1] CRAN (R 3.6.0)                    
+ infer         * 0.4.0      2018-11-15 [1] CRAN (R 3.6.0)                    
+ inline          0.3.15     2018-05-18 [1] CRAN (R 3.6.0)                    
+ ipred           0.9-8      2018-11-05 [1] CRAN (R 3.6.0)                    
+ iterators       1.0.10     2018-07-13 [1] CRAN (R 3.6.0)                    
+ janeaustenr     0.1.5      2017-06-10 [1] CRAN (R 3.6.0)                    
+ knitr           1.22       2019-03-08 [1] CRAN (R 3.6.0)                    
+ later           0.8.0      2019-02-11 [1] CRAN (R 3.6.0)                    
+ lattice       * 0.20-38    2018-11-04 [1] CRAN (R 3.6.0)                    
+ lava            1.6.5      2019-02-12 [1] CRAN (R 3.6.0)                    
+ lazyeval        0.2.2      2019-03-15 [1] CRAN (R 3.6.0)                    
+ lme4            1.1-20     2019-02-04 [1] CRAN (R 3.6.0)                    
+ loo             2.0.0      2018-04-11 [1] CRAN (R 3.6.0)                    
+ lubridate     * 1.7.4      2018-04-11 [1] CRAN (R 3.5.0)                    
+ magrittr        1.5        2014-11-22 [1] CRAN (R 3.6.0)                    
+ markdown        0.9        2018-12-07 [1] CRAN (R 3.6.0)                    
+ MASS            7.3-51.4   2019-03-31 [1] CRAN (R 3.6.0)                    
+ Matrix          1.2-16     2019-03-08 [1] CRAN (R 3.6.0)                    
+ matrixStats     0.54.0     2018-07-23 [1] CRAN (R 3.6.0)                    
+ mime            0.6        2018-10-05 [1] CRAN (R 3.6.0)                    
+ miniUI          0.1.1.1    2018-05-18 [1] CRAN (R 3.6.0)                    
+ minqa           1.2.4      2014-10-09 [1] CRAN (R 3.6.0)                    
+ ModelMetrics    1.2.2      2018-11-03 [1] CRAN (R 3.6.0)                    
+ munsell         0.5.0      2018-06-12 [1] CRAN (R 3.6.0)                    
+ nlme            3.1-137    2018-04-07 [1] CRAN (R 3.6.0)                    
+ nloptr          1.2.1      2018-10-03 [1] CRAN (R 3.6.0)                    
+ nnet            7.3-12     2016-02-02 [1] CRAN (R 3.6.0)                    
+ parsnip       * 0.0.2      2019-03-22 [1] CRAN (R 3.6.0)                    
+ pillar          1.3.1      2018-12-15 [1] CRAN (R 3.6.0)                    
+ pkgbuild        1.0.3      2019-03-20 [1] CRAN (R 3.6.0)                    
+ pkgconfig       2.0.2      2018-08-16 [1] CRAN (R 3.6.0)                    
+ plyr            1.8.4      2016-06-08 [1] CRAN (R 3.6.0)                    
+ prettyunits     1.0.2      2015-07-13 [1] CRAN (R 3.6.0)                    
+ pROC            1.14.0     2019-03-12 [1] CRAN (R 3.6.0)                    
+ processx        3.3.0      2019-03-10 [1] CRAN (R 3.6.0)                    
+ prodlim         2018.04.18 2018-04-18 [1] CRAN (R 3.6.0)                    
+ promises        1.0.1      2018-04-13 [1] CRAN (R 3.6.0)                    
+ ps              1.3.0      2018-12-21 [1] CRAN (R 3.6.0)                    
+ purrr         * 0.3.2      2019-03-15 [1] CRAN (R 3.6.0)                    
+ R6              2.4.0      2019-02-14 [1] CRAN (R 3.6.0)                    
+ Rcpp            1.0.1      2019-03-17 [1] CRAN (R 3.6.0)                    
+ recipes       * 0.1.5      2019-03-21 [1] CRAN (R 3.6.0)                    
+ reshape2        1.4.3      2017-12-11 [1] CRAN (R 3.6.0)                    
+ rlang           0.3.3      2019-03-29 [1] CRAN (R 3.6.0)                    
+ rpart           4.1-13     2018-02-23 [1] CRAN (R 3.6.0)                    
+ rsample       * 0.0.4      2019-01-07 [1] CRAN (R 3.6.0)                    
+ rsconnect       0.8.13     2019-01-10 [1] CRAN (R 3.6.0)                    
+ rstan           2.18.2     2018-11-07 [1] CRAN (R 3.6.0)                    
+ rstanarm        2.18.2     2018-11-10 [1] CRAN (R 3.6.0)                    
+ rstantools      1.5.1      2018-08-22 [1] CRAN (R 3.6.0)                    
+ rstudioapi      0.10       2019-03-19 [1] CRAN (R 3.6.0)                    
+ scales        * 1.0.0      2018-08-09 [1] CRAN (R 3.6.0)                    
+ sessioninfo   * 1.1.1.9000 2019-03-26 [1] Github (r-lib/sessioninfo@dfb3ea8)
+ shiny           1.2.0      2018-11-02 [1] CRAN (R 3.6.0)                    
+ shinyjs         1.0        2018-01-08 [1] CRAN (R 3.6.0)                    
+ shinystan       2.5.0      2018-05-01 [1] CRAN (R 3.6.0)                    
+ shinythemes     1.1.2      2018-11-06 [1] CRAN (R 3.6.0)                    
+ SnowballC     * 0.6.0      2019-01-15 [1] CRAN (R 3.6.0)                    
+ StanHeaders     2.18.1     2019-01-28 [1] CRAN (R 3.6.0)                    
+ stringi         1.4.3      2019-03-12 [1] CRAN (R 3.6.0)                    
+ stringr         1.4.0      2019-02-10 [1] CRAN (R 3.6.0)                    
+ survival        2.43-3     2018-11-26 [1] CRAN (R 3.6.0)                    
+ syuzhet         1.0.4      2017-12-14 [1] CRAN (R 3.6.0)                    
+ textfeatures  * 0.3.0      2018-11-29 [1] CRAN (R 3.6.0)                    
+ tfse            0.5.0      2019-02-11 [1] CRAN (R 3.6.0)                    
+ threejs         0.3.1      2017-08-13 [1] CRAN (R 3.6.0)                    
+ tibble        * 2.1.1      2019-03-16 [1] CRAN (R 3.6.0)                    
+ tidymodels    * 0.0.2      2018-11-27 [1] CRAN (R 3.6.0)                    
+ tidyposterior   0.0.2      2018-11-15 [1] CRAN (R 3.6.0)                    
+ tidypredict     0.3.0      2019-03-30 [1] local                             
+ tidyr         * 0.8.3      2019-03-01 [1] CRAN (R 3.6.0)                    
+ tidyselect      0.2.5      2018-10-11 [1] CRAN (R 3.6.0)                    
+ tidytext      * 0.2.0      2018-10-17 [1] CRAN (R 3.6.0)                    
+ timeDate        3043.102   2018-02-21 [1] CRAN (R 3.6.0)                    
+ tokenizers      0.2.1      2018-03-29 [1] CRAN (R 3.6.0)                    
+ withr           2.1.2      2018-03-15 [1] CRAN (R 3.6.0)                    
+ xfun            0.5        2019-02-20 [1] CRAN (R 3.6.0)                    
+ xtable          1.8-3      2018-08-29 [1] CRAN (R 3.6.0)                    
+ xts             0.11-2     2018-11-05 [1] CRAN (R 3.6.0)                    
+ yardstick     * 0.0.2      2018-11-05 [1] CRAN (R 3.6.0)                    
+ zoo             1.8-5      2019-03-21 [1] CRAN (R 3.6.0)                    
 
-[1] /Library/Frameworks/R.framework/Versions/3.5/Resources/library
+[1] /Library/Frameworks/R.framework/Versions/3.6/Resources/library
 > 
 > if (!interactive())
 +   q("no")
 > proc.time()
    user  system elapsed 
-390.254  10.333 400.597 
+400.946  10.384 411.346 

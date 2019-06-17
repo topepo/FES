@@ -1,7 +1,7 @@
 ---
 title: "Chicago Train Data"
 author: "Max Kuhn"
-date: "3/27/2017"
+date: "4/16/2019"
 output: html_document
 ---
 
@@ -25,35 +25,18 @@ The source data for station entries can be found at the [City of Chicago web por
 The station data are contained in a small csv file, but several versions exist over time. We pool them. 
 
 ```{r station_import, results = 'hide'}
-stations_new <- 
-  read_csv("cta_L_stops_rls_2018.csv") %>% 
-  # Remove duplicate rows
-  group_by(MAP_ID) %>% 
-  slice(1) %>% 
-  ungroup() %>% 
-  mutate(
-    Location  = gsub("[\\)\\(]", "", Location),
-    LAT = str_split(Location, pattern = ",") %>% map_chr(pluck, 1) %>% as.numeric(),
-    LON = str_split(Location, pattern = ",") %>% map_chr(pluck, 2) %>% as.numeric()
-    ) %>% 
-  select(PARENT_STOP_ID = MAP_ID, STATION_NAME, STATION_DESCRIPTIVE_NAME, LON, LAT)
-
-stops <- unique(stations_new$PARENT_STOP_ID)
-
-stations_old <- 
-  read_csv("cta_L_stops_rls.csv") %>% 
-  # Remove duplicate rows
+stations <- 
+  read_csv("cta_L_stops_rls_complete.csv") %>% 
+  # Remove duplicate rows corresponding to stops within station
   group_by(PARENT_STOP_ID) %>% 
   slice(1) %>% 
-  select(PARENT_STOP_ID, STATION_NAME, STATION_DESCRIPTIVE_NAME, LON, LAT) %>% 
-  filter(!(PARENT_STOP_ID %in% stops))
-
-stations <- 
-  bind_rows(stations_new, stations_old) %>% 
-  distinct(PARENT_STOP_ID, STATION_NAME, STATION_DESCRIPTIVE_NAME, LON, LAT) %>% 
+  ungroup() %>% 
   mutate(PARENT_STOP_ID = paste0("s_", PARENT_STOP_ID)) %>% 
-  select(station_id = PARENT_STOP_ID, name = STATION_NAME, 
-         description = STATION_DESCRIPTIVE_NAME, lon = LON, lat = LAT) 
+  dplyr::select(- STOP_ID, -DIRECTION_ID, -STOP_NAME) %>% 
+  dplyr::rename(station_id = PARENT_STOP_ID, name = STATION_NAME, 
+                description = STATION_DESCRIPTIVE_NAME, lon = LON, lat = LAT) 
+
+save(stations, file = "stations.RData", compress = TRUE)
 ```
 
 The entry data are contained in a file with fewer fields but many rows
@@ -85,6 +68,21 @@ averaged <-
   raw_entries %>%
   group_by(station_id, date) %>%
   summarise(rides = mean(rides, na.rm = TRUE))
+```
+
+```{r raw-data, include = FALSE}
+# Save this for the missing data chapter
+raw_entries <- 
+  averaged %>% 
+  spread(station_id, rides)
+
+station_cols <- names(raw_entries)[-1]
+station_cols <- paste0("s_", station_cols)
+
+raw_entries <- setNames(raw_entries, c("date", station_cols))
+rm(station_cols)
+
+save(raw_entries, file = "chicago_raw_entries.RData", compress = TRUE)
 ```
 
 We might want to eliminate some station data based on high percentages of missing data or stations that have very low entries per day. 
