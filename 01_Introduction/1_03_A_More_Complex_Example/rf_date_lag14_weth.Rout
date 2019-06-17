@@ -1,0 +1,58 @@
+
+R version 3.6.0 beta (2019-04-15 r76395) -- "Planting of a Tree"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(caret)
+Loading required package: lattice
+Loading required package: ggplot2
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
+> library(sessioninfo)
+> library(ranger)
+> library(doParallel)
+Loading required package: foreach
+Loading required package: iterators
+Loading required package: parallel
+> cl <- makePSOCKcluster(parallel::detectCores() - 2)
+> registerDoParallel(cl)
+> 
+> # ------------------------------------------------------------------------------
+> 
+> # Load pre-made data
+> load("../../Data_Sets/Chicago_trains/chicago.RData")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> pred_vars <- c(var_sets$dates, var_sets$lag14, var_sets$weather)
+> 
+> set.seed(4194)
+> rf_date_lag14_weth <- train(y = training$s_40380,
++                             x = training[, pred_vars],
++                             method = "ranger",
++                             num.trees = 2000, 
++                             verbose = FALSE,
++                             tuneLength = 50,
++                             metric = "RMSE",
++                             maximize = FALSE,
++                             trControl = ctrl,
++                             num.threads = 1)
+
+Execution halted

@@ -1,0 +1,147 @@
+
+R version 3.6.0 beta (2019-04-16 r76403) -- "Planting of a Tree"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(caret)
+Loading required package: lattice
+Loading required package: ggplot2
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
+> library(sessioninfo)
+> library(glmnet)
+Loading required package: Matrix
+Loading required package: foreach
+Loaded glmnet 2.0-16
+
+> library(doParallel)
+Loading required package: iterators
+Loading required package: parallel
+> cl <- makePSOCKcluster(parallel::detectCores() - 2)
+> registerDoParallel(cl)
+> 
+> # ------------------------------------------------------------------------------
+> 
+> # Load pre-made data
+> load("../../Data_Sets/Chicago_trains/chicago.RData")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> 
+> glmn_grid <- expand.grid(alpha = c(0.05, seq(.1, 1, by = 0.05)),
++                          lambda = 2^(-2:5))
+> 
+> # ------------------------------------------------------------------------------
+> 
+> pred_vars <- c(var_sets$dates, var_sets$lag14)
+> 
+> set.seed(4194)
+> glmn_date_lag14 <- train(s_40380 ~ .,
++                          data = training[, c("s_40380", pred_vars)],
++                          method = "glmnet",
++                          preProc = c("center", "scale"),
++                          tuneGrid = glmn_grid,
++                          metric = "RMSE",
++                          maximize = FALSE,
++                          trControl = ctrl)
+Aggregating results
+Selecting tuning parameters
+Fitting alpha = 0.05, lambda = 0.25 on full training set
+Final model footprint reduced by 7.8 Mb or 98% 
+Warning message:
+In nominalTrainWorkflow(x = x, y = y, wts = weights, info = trainInfo,  :
+  There were missing values in resampled performance measures.
+> save(glmn_date_lag14, file = "glmn_date_lag14.RData")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> session_info()
+─ Session info ───────────────────────────────────────────────────────────────
+ setting  value                                   
+ version  R version 3.6.0 beta (2019-04-16 r76403)
+ os       macOS High Sierra 10.13.6               
+ system   x86_64, darwin15.6.0                    
+ ui       X11                                     
+ language (EN)                                    
+ collate  en_US.UTF-8                             
+ ctype    en_US.UTF-8                             
+ tz       America/New_York                        
+ date     2019-04-18                              
+
+─ Packages ───────────────────────────────────────────────────────────────────
+ package      * version    date       lib source                            
+ assertthat     0.2.1      2019-03-21 [1] CRAN (R 3.6.0)                    
+ caret        * 6.0-82     2019-03-26 [1] CRAN (R 3.6.0)                    
+ class          7.3-15     2019-01-01 [1] CRAN (R 3.6.0)                    
+ cli            1.1.0      2019-03-19 [1] CRAN (R 3.6.0)                    
+ codetools      0.2-16     2018-12-24 [1] CRAN (R 3.6.0)                    
+ colorspace     1.4-1      2019-03-18 [1] CRAN (R 3.6.0)                    
+ crayon         1.3.4      2017-09-16 [1] CRAN (R 3.6.0)                    
+ data.table     1.12.0     2019-01-13 [1] CRAN (R 3.6.0)                    
+ doParallel   * 1.0.14     2018-09-24 [1] CRAN (R 3.6.0)                    
+ dplyr          0.8.0.1    2019-02-15 [1] CRAN (R 3.6.0)                    
+ foreach      * 1.4.4      2017-12-12 [1] CRAN (R 3.6.0)                    
+ generics       0.0.2      2018-11-29 [1] CRAN (R 3.6.0)                    
+ ggplot2      * 3.1.0      2018-10-25 [1] CRAN (R 3.6.0)                    
+ glmnet       * 2.0-16     2018-04-02 [1] CRAN (R 3.6.0)                    
+ glue           1.3.1      2019-03-12 [1] CRAN (R 3.6.0)                    
+ gower          0.2.0      2019-03-07 [1] CRAN (R 3.6.0)                    
+ gtable         0.2.0      2016-02-26 [1] CRAN (R 3.6.0)                    
+ ipred          0.9-8      2018-11-05 [1] CRAN (R 3.6.0)                    
+ iterators    * 1.0.10     2018-07-13 [1] CRAN (R 3.6.0)                    
+ lattice      * 0.20-38    2018-11-04 [1] CRAN (R 3.6.0)                    
+ lava           1.6.5      2019-02-12 [1] CRAN (R 3.6.0)                    
+ lazyeval       0.2.2      2019-03-15 [1] CRAN (R 3.6.0)                    
+ lubridate      1.7.4      2018-04-11 [1] CRAN (R 3.5.0)                    
+ magrittr       1.5        2014-11-22 [1] CRAN (R 3.6.0)                    
+ MASS           7.3-51.4   2019-03-31 [1] CRAN (R 3.6.0)                    
+ Matrix       * 1.2-17     2019-03-22 [1] CRAN (R 3.6.0)                    
+ ModelMetrics   1.2.2      2018-11-03 [1] CRAN (R 3.6.0)                    
+ munsell        0.5.0      2018-06-12 [1] CRAN (R 3.6.0)                    
+ nlme           3.1-139    2019-04-09 [1] CRAN (R 3.6.0)                    
+ nnet           7.3-12     2016-02-02 [1] CRAN (R 3.6.0)                    
+ pillar         1.3.1      2018-12-15 [1] CRAN (R 3.6.0)                    
+ pkgconfig      2.0.2      2018-08-16 [1] CRAN (R 3.6.0)                    
+ plyr           1.8.4      2016-06-08 [1] CRAN (R 3.6.0)                    
+ prodlim        2018.04.18 2018-04-18 [1] CRAN (R 3.6.0)                    
+ purrr          0.3.2      2019-03-15 [1] CRAN (R 3.6.0)                    
+ R6             2.4.0      2019-02-14 [1] CRAN (R 3.6.0)                    
+ Rcpp           1.0.1      2019-03-17 [1] CRAN (R 3.6.0)                    
+ recipes        0.1.5      2019-03-21 [1] CRAN (R 3.6.0)                    
+ reshape2       1.4.3      2017-12-11 [1] CRAN (R 3.6.0)                    
+ rlang          0.3.3      2019-03-29 [1] CRAN (R 3.6.0)                    
+ rpart          4.1-15     2019-04-12 [1] CRAN (R 3.6.0)                    
+ scales         1.0.0      2018-08-09 [1] CRAN (R 3.6.0)                    
+ sessioninfo  * 1.1.1.9000 2019-03-26 [1] Github (r-lib/sessioninfo@dfb3ea8)
+ stringi        1.4.3      2019-03-12 [1] CRAN (R 3.6.0)                    
+ stringr        1.4.0      2019-02-10 [1] CRAN (R 3.6.0)                    
+ survival       2.44-1.1   2019-04-01 [1] CRAN (R 3.6.0)                    
+ tibble         2.1.1      2019-03-16 [1] CRAN (R 3.6.0)                    
+ tidyselect     0.2.5      2018-10-11 [1] CRAN (R 3.6.0)                    
+ timeDate       3043.102   2018-02-21 [1] CRAN (R 3.6.0)                    
+ withr          2.1.2      2018-03-15 [1] CRAN (R 3.6.0)                    
+
+[1] /Library/Frameworks/R.framework/Versions/3.6/Resources/library
+> 
+> if(!interactive()) 
++   q("no")
+> proc.time()
+   user  system elapsed 
+  4.673   0.413  46.201 
