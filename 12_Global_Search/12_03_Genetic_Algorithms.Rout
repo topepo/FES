@@ -1,0 +1,258 @@
+
+R Under development (unstable) (2019-03-18 r76245) -- "Unsuffered Consequences"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # ------------------------------------------------------------------------------
+> # Feature Engineering and Selection: A Practical Approach for Predictive Models
+> # by Max Kuhn and Kjell Johnson
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code for Section 12.3 at
+> # https://bookdown.org/max/FES/global.html#genetic-algorithms
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code requires these packages: 
+> 
+> library(caret)
+Loading required package: lattice
+Loading required package: ggplot2
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
+> library(tidymodels)
+Registered S3 method overwritten by 'xts':
+  method     from
+  as.zoo.xts zoo 
+── Attaching packages ────────────────────────────────────── tidymodels 0.0.2 ──
+✔ broom     0.5.1       ✔ purrr     0.3.2  
+✔ dials     0.0.2       ✔ recipes   0.1.5  
+✔ dplyr     0.8.0.1     ✔ rsample   0.0.4  
+✔ infer     0.4.0       ✔ tibble    2.1.1  
+✔ parsnip   0.0.2       ✔ yardstick 0.0.2  
+── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
+✖ purrr::discard()       masks scales::discard()
+✖ dplyr::filter()        masks stats::filter()
+✖ dplyr::lag()           masks stats::lag()
+✖ purrr::lift()          masks caret::lift()
+✖ yardstick::precision() masks caret::precision()
+✖ yardstick::recall()    masks caret::recall()
+✖ recipes::step()        masks stats::step()
+> library(doParallel)
+Loading required package: foreach
+
+Attaching package: ‘foreach’
+
+The following objects are masked from ‘package:purrr’:
+
+    accumulate, when
+
+Loading required package: iterators
+Loading required package: parallel
+> cl <- makeForkCluster(nnodes = parallel::detectCores() - 1)
+> registerDoParallel(cl)
+> 
+> # ------------------------------------------------------------------------------
+> 
+> load("../Data_Sets/OkCupid/okc.RData")
+> load("../Data_Sets/OkCupid/okc_other.RData")
+> load("../Data_Sets/OkCupid/okc_binary.RData")
+> load("../Data_Sets/OkCupid/okc_features.RData")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> okc_train <- okc_train %>%
++   full_join(okc_train_binary) %>%
++   full_join(basic_features_train) %>%
++   arrange(profile) %>%
++   select(-profile, -where_state) 
+Joining, by = "profile"
+Joining, by = "profile"
+> 
+> # ------------------------------------------------------------------------------
+> 
+> many_stats <- 
++   function(data, lev = levels(data$obs), model = NULL) {
++     c(
++       twoClassSummary(data = data, lev = levels(data$obs), model), 
++       prSummary(data = data, lev = levels(data$obs), model), 
++       mnLogLoss(data = data, lev = levels(data$obs), model),
++       defaultSummary(data = data, lev = levels(data$obs), model)
++     )
++   }
+> 
+> # ------------------------------------------------------------------------------
+> 
+> ga_funcs <- caretGA
+> 
+> ga_funcs$fitness_extern <- many_stats
+> 
+> ga_funcs$initial <- function(vars, popSize, ...)  {
++   x <- matrix(NA, nrow = popSize, ncol = vars)
++   probs <- seq(0.1, 0.90, length = popSize)
++   for (i in 1:popSize) {
++     x[i, ] <- 
++       sample(0:1, replace = TRUE, size = vars, prob = c(probs[i], 1 - probs[i]))
++   }
++   var_count <- apply(x, 1, sum)
++   if (any(var_count == 0)) {
++     for (i in which(var_count == 0)) {
++       p <- sample(1:length(vars), size = 2)
++       x[i, p] <- 1
++     }
++   }
++   x
++ }
+> 
+> ctrl_rs <- trainControl(
++   method = "LGOCV", 
++   p = 0.90,
++   number = 1,
++   summaryFunction = many_stats, 
++   classProbs = TRUE,
++   allowParallel = FALSE
++ )
+> 
+> ga_ctrl <- gafsControl(
++   method = "cv",
++   metric = c(internal = "ROC", external = "ROC"),
++   maximize = c(internal = TRUE, external = TRUE), 
++   functions = ga_funcs, 
++   returnResamp = "all",
++   verbose = TRUE
++ )
+> 
+> options(digits = 3)
+> 
+> numero_two <- function(x) length(unique(x)) == 2 & is.numeric(x)
+> 
+> is_dummy <- map_lgl(okc_train, numero_two)
+> dummies <- names(is_dummy)[is_dummy]
+> 
+> okc_rec <- 
++   recipe(Class ~ ., data = okc_train) %>%
++   step_bin2factor(!!! dummies) %>%
++   step_zv(all_predictors())
+> 
+> nb_grid <- data.frame(usekernel = TRUE, fL = 0, adjust = 1)
+> 
+> set.seed(325)
+> gen_algo <- gafs(
++   okc_rec,
++   data = okc_train,
++   iters = 15,
++   gafsControl = ga_ctrl,
++   method = "nb",
++   tuneGrid = nb_grid,
++   trControl = ctrl_rs,
++   metric = "ROC"
++ )
+Preparing recipe
++ final GA
+  1 0.808 (87)
+  2 0.808->0.813 ( 87-> 75, 51.4%) *
+  3 0.813->0.818 ( 75-> 78, 56.1%) *
+  4 0.818->0.826 ( 78-> 72, 68.5%) *
+  5 0.826->0.826 ( 72-> 70, 51.1%)
+  6 0.826->0.825 ( 72-> 70, 51.1%)
+  7 0.826->0.821 ( 72-> 68, 48.9%)
+  8 0.826->0.83 ( 72-> 63, 45.2%) *
+  9 0.83->0.838 ( 63-> 61, 74.6%) *
+ 10 0.838->0.835 ( 61-> 63, 74.6%)
+ 11 0.838->0.838 ( 61-> 70, 61.7%) *
+ 12 0.838->0.842 ( 70-> 66, 54.5%) *
+ 13 0.842->0.834 ( 66-> 59, 71.2%)
+ 14 0.842->0.84 ( 66-> 62, 75.3%)
+ 15 0.842->0.835 ( 66-> 63, 95.5%)
++ final model
+There were 50 or more warnings (use warnings() to see the first 50)
+> 
+> # Random Subset Size Validation ------------------------------------------------
+> 
+> ga_subset_size <- length(gen_algo$optVariables)
+> iter <- 100
+> vars <- names(okc_train)
+> vars <- vars[vars != "Class"]
+> 
+> subset_ctrl <- trainControl(
++   method = "cv",
++   classProbs = TRUE,
++   summaryFunction = many_stats
++ )
+> 
+> for (i in 1:iter) {
++   set.seed(7883 + i)
++   rand_subset <- sample(vars, ga_subset_size)
++   subset_dat <- okc_train %>% dplyr::select(Class, !!!rand_subset)
++   
++   is_dummy <- map_lgl(subset_dat, numero_two)
++   dummies <- names(is_dummy)[is_dummy]
++   
++   subset_rec <- 
++     recipe(Class ~ ., data = subset_dat) %>%
++     step_bin2factor(!!! dummies) %>%
++     step_zv(all_predictors())
++   
++   set.seed(325)
++   subset_model <- train(
++     subset_rec,
++     data = subset_dat,
++     method = "nb",
++     tuneGrid = nb_grid,
++     trControl = subset_ctrl,
++     metric = "ROC"
++   )
++   subset_perf <- getTrainPerf(subset_model)
++   
++   if (i == 1) {
++     ga_size_check <- subset_perf
++   } else {
++     ga_size_check <- bind_rows(ga_size_check, subset_perf)
++   }
++   rm(rand_subset, subset_rec, subset_model, subset_perf, is_dummy, dummies, subset_dat)
++ }
+> 
+> # ------------------------------------------------------------------------------
+> # Remove some objects to make the file size smaller
+> 
+> gen_algo$fit$control$index <- NULL
+> gen_algo$fit$control$indexOut <- NULL
+> gen_algo$fit$finalModel$x <- NULL
+> gen_algo$ga$fit$trainingData <- NULL
+> gen_algo$ga$fit$control$index <- NULL
+> gen_algo$ga$fit$control$indexOut <- NULL
+> gen_algo$ga$fit$finalModel$x <- NULL
+> gen_algo$control$index <- NULL
+> gen_algo$control$indexOut <- NULL
+> gen_algo$recipe$template <- NULL
+> attr(gen_algo$recipe$steps[[2]]$terms[[1]], ".Environment") <- emptyenv()
+> 
+> # ------------------------------------------------------------------------------
+> 
+> save(gen_algo, ga_size_check, file = "gen_algo.RData")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> if (!interactive())
++   q("no")
+> proc.time()
+   user  system elapsed 
+  13022    1012   36322 
