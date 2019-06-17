@@ -1,0 +1,173 @@
+WARNING: unknown option '-vanilla'
+
+
+R version 3.6.0 (2019-04-26) -- "Planting of a Tree"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # ------------------------------------------------------------------------------
+> # Feature Engineering and Selection: A Practical Approach for Predictive Models
+> # by Max Kuhn and Kjell Johnson
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code for Section 3.2.1 at
+> # https://bookdown.org/max/FES/measuring-performance.html#reg-metrics
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code requires these packages: 
+> 
+> library(tidymodels)
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
+Registered S3 method overwritten by 'xts':
+  method     from
+  as.zoo.xts zoo 
+── Attaching packages ────────────────────────────────────── tidymodels 0.0.2 ──
+✔ broom     0.5.1       ✔ purrr     0.3.1  
+✔ dials     0.0.2       ✔ recipes   0.1.5  
+✔ dplyr     0.8.0.1     ✔ rsample   0.0.4  
+✔ ggplot2   3.1.0       ✔ tibble    2.0.1  
+✔ infer     0.4.0       ✔ yardstick 0.0.2  
+✔ parsnip   0.0.1       
+── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
+✖ purrr::discard() masks scales::discard()
+✖ dplyr::filter()  masks stats::filter()
+✖ dplyr::lag()     masks stats::lag()
+✖ recipes::step()  masks stats::step()
+> library(gridExtra)
+
+Attaching package: ‘gridExtra’
+
+The following object is masked from ‘package:dplyr’:
+
+    combine
+
+> 
+> theme_set(theme_bw() + theme(legend.position = "top"))
+> 
+> # ------------------------------------------------------------------------------
+> 
+> # Load linear model results for Chicago data
+> load(
++   file.path(
++     "..",
++     "01_Introduction",
++     "1_03_A_More_Complex_Example",
++     "lm_date_only.RData"
++   )
++ )
+> 
+> # ------------------------------------------------------------------------------
+> 
+> lm_date_only$pred %>% rmse(obs, pred)
+# A tibble: 1 x 3
+  .metric .estimator .estimate
+  <chr>   <chr>          <dbl>
+1 rmse    standard        3.85
+> lm_date_only$pred %>% rsq(obs, pred)
+# A tibble: 1 x 3
+  .metric .estimator .estimate
+  <chr>   <chr>          <dbl>
+1 rsq     standard       0.866
+> 
+> # ------------------------------------------------------------------------------
+> 
+> chi_xy <- ggplot(lm_date_only$pred, aes(x = obs, y = pred)) + 
++   geom_abline(intercept = 0, slope = 1, col = "grey", lty = 1) + 
++   geom_point(alpha = .5, size = .7) + 
++   geom_smooth(method = lm, se = FALSE, col = rgb(0, 0, 1, .2), alpha = .5) + 
++   xlab("Actual Train Ridership (thousands)") + 
++   ylab("Predicted Ridership (thousands)") + 
++   ggtitle("(a)")
+> 
+> chi_hst <- ggplot(lm_date_only$pred, aes(x = obs - pred)) + 
++   geom_histogram(binwidth = 1, col = "#377EB8", fill = "#377EB8", alpha = .5) + 
++   xlab("Ridership Residuals (thousands)") + 
++   ggtitle("(b)")
+> 
+> # https://bookdown.org/max/FES/measuring-performance.html#fig:review-chi-r2
+> # grid.arrange(chi_xy, chi_hst, nrow = 1, ncol = 2)
+> 
+> # ------------------------------------------------------------------------------
+> 
+> sessionInfo()
+R version 3.6.0 (2019-04-26)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS Mojave 10.14.5
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] gridExtra_2.3    yardstick_0.0.2  tibble_2.0.1     rsample_0.0.4   
+ [5] tidyr_0.8.3      recipes_0.1.5    purrr_0.3.1      parsnip_0.0.1   
+ [9] infer_0.4.0      ggplot2_3.1.0    dplyr_0.8.0.1    dials_0.0.2     
+[13] scales_1.0.0     broom_0.5.1      tidymodels_0.0.2
+
+loaded via a namespace (and not attached):
+  [1] minqa_1.2.4         colorspace_1.4-1    class_7.3-15       
+  [4] ggridges_0.5.1      rsconnect_0.8.13    markdown_0.9       
+  [7] base64enc_0.1-3     tidytext_0.2.0      rstudioapi_0.9.0   
+ [10] rstan_2.18.2        SnowballC_0.6.0     DT_0.5             
+ [13] fansi_0.4.0         prodlim_2018.04.18  lubridate_1.7.4    
+ [16] codetools_0.2-16    splines_3.6.0       knitr_1.23         
+ [19] shinythemes_1.1.2   bayesplot_1.6.0     nloptr_1.2.1       
+ [22] pROC_1.14.0         caret_6.0-84        shiny_1.2.0        
+ [25] compiler_3.6.0      backports_1.1.3     assertthat_0.2.0   
+ [28] Matrix_1.2-17       lazyeval_0.2.1      cli_1.1.0          
+ [31] later_0.8.0         htmltools_0.3.6     prettyunits_1.0.2  
+ [34] tools_3.6.0         igraph_1.2.4        gtable_0.2.0       
+ [37] glue_1.3.0          reshape2_1.4.3      Rcpp_1.0.0         
+ [40] nlme_3.1-139        iterators_1.0.10    crosstalk_1.0.0    
+ [43] timeDate_3043.102   gower_0.2.1         xfun_0.7           
+ [46] stringr_1.4.0       ps_1.3.0            lme4_1.1-21        
+ [49] mime_0.6            miniUI_0.1.1.1      gtools_3.8.1       
+ [52] tidypredict_0.3.0   MASS_7.3-51.4       zoo_1.8-6          
+ [55] ipred_0.9-8         rstanarm_2.18.2     colourpicker_1.0   
+ [58] promises_1.0.1      parallel_3.6.0      inline_0.3.15      
+ [61] shinystan_2.5.0     tidyposterior_0.0.2 loo_2.0.0          
+ [64] StanHeaders_2.18.1  rpart_4.1-15        stringi_1.4.3      
+ [67] tokenizers_0.2.1    dygraphs_1.1.1.6    foreach_1.4.4      
+ [70] boot_1.3-22         pkgbuild_1.0.2      lava_1.6.5         
+ [73] rlang_0.3.1         pkgconfig_2.0.2     matrixStats_0.54.0 
+ [76] lattice_0.20-38     rstantools_1.5.1    htmlwidgets_1.3    
+ [79] processx_3.3.1      tidyselect_0.2.5    plyr_1.8.4         
+ [82] magrittr_1.5        R6_2.4.0            generics_0.0.2     
+ [85] pillar_1.3.1        withr_2.1.2         xts_0.11-2         
+ [88] survival_2.44-1.1   nnet_7.3-12         janeaustenr_0.1.5  
+ [91] crayon_1.3.4        utf8_1.1.4          grid_3.6.0         
+ [94] data.table_1.12.2   callr_3.2.0         ModelMetrics_1.2.2 
+ [97] threejs_0.3.1       digest_0.6.18       xtable_1.8-3       
+[100] httpuv_1.4.5.1      stats4_3.6.0        munsell_0.5.0      
+[103] shinyjs_1.0        
+> 
+> 
+> proc.time()
+   user  system elapsed 
+  3.653   0.226   3.894 
