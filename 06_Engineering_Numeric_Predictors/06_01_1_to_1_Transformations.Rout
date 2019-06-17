@@ -1,0 +1,162 @@
+WARNING: unknown option '-vanilla'
+
+
+R version 3.6.0 (2019-04-26) -- "Planting of a Tree"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # ------------------------------------------------------------------------------
+> # Feature Engineering and Selection: A Practical Approach for Predictive Models
+> # by Max Kuhn and Kjell Johnson
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code for Section 6.1 at
+> # https://bookdown.org/max/FES/numeric-one-to-one.html
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code requires these packages: 
+> 
+> library(caret)
+Loading required package: lattice
+Loading required package: ggplot2
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
+> library(tidymodels)
+Registered S3 method overwritten by 'xts':
+  method     from
+  as.zoo.xts zoo 
+── Attaching packages ────────────────────────────────────── tidymodels 0.0.2 ──
+✔ broom     0.5.1       ✔ purrr     0.3.1  
+✔ dials     0.0.2       ✔ recipes   0.1.5  
+✔ dplyr     0.8.0.1     ✔ rsample   0.0.4  
+✔ infer     0.4.0       ✔ tibble    2.0.1  
+✔ parsnip   0.0.1       ✔ yardstick 0.0.2  
+── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
+✖ purrr::discard()       masks scales::discard()
+✖ dplyr::filter()        masks stats::filter()
+✖ dplyr::lag()           masks stats::lag()
+✖ purrr::lift()          masks caret::lift()
+✖ yardstick::precision() masks caret::precision()
+✖ yardstick::recall()    masks caret::recall()
+✖ recipes::step()        masks stats::step()
+> 
+> theme_set(theme_bw() + theme(legend.position = "top"))
+> 
+> # ------------------------------------------------------------------------------
+> 
+> data("segmentationData")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> segmentationData$Cell <- NULL
+> segmentationData <- segmentationData[, c("EqSphereAreaCh1", "PerimCh1", "Class", "Case")]
+> names(segmentationData)[1:2] <- paste0("Predictor", LETTERS[1:2])
+> 
+> example_train <- subset(segmentationData, Case == "Train")
+> example_test  <- subset(segmentationData, Case == "Test")
+> 
+> example_train$Case <- NULL
+> example_test$Case  <- NULL
+> 
+> simple_trans_rec <- recipe(Class ~ ., data = example_train) %>%
++   step_BoxCox(PredictorA, PredictorB) %>%
++   prep(training = example_train)
+> 
+> simple_trans_test <- bake(simple_trans_rec, example_test)
+> pred_b_lambda <-
++   tidy(simple_trans_rec, number = 1) %>% 
++   filter(terms == "PredictorB") %>% 
++   select(value)
+> 
+> bc_before <- ggplot(example_test, aes(x = PredictorB)) + 
++   geom_histogram(bins = 35, col = "blue", fill = "blue", alpha = .6) + 
++   xlab("Predictor B") + 
++   ggtitle("(a)")
+> bc_after <- ggplot(simple_trans_test, aes(x = PredictorB)) + 
++   geom_histogram(bins = 35, col = "red", fill = "red", alpha = .6) + 
++   xlab("Predictor B (inverse)") + 
++   ggtitle("(b)")
+> 
+> 
+> # ------------------------------------------------------------------------------
+> 
+> sessionInfo()
+R version 3.6.0 (2019-04-26)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS Mojave 10.14.5
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] yardstick_0.0.2  tibble_2.0.1     rsample_0.0.4    tidyr_0.8.3     
+ [5] recipes_0.1.5    purrr_0.3.1      parsnip_0.0.1    infer_0.4.0     
+ [9] dplyr_0.8.0.1    dials_0.0.2      scales_1.0.0     broom_0.5.1     
+[13] tidymodels_0.0.2 caret_6.0-84     ggplot2_3.1.0    lattice_0.20-38 
+
+loaded via a namespace (and not attached):
+  [1] minqa_1.2.4         colorspace_1.4-1    class_7.3-15       
+  [4] ggridges_0.5.1      rsconnect_0.8.13    markdown_0.9       
+  [7] base64enc_0.1-3     tidytext_0.2.0      rstudioapi_0.9.0   
+ [10] rstan_2.18.2        SnowballC_0.6.0     DT_0.5             
+ [13] prodlim_2018.04.18  lubridate_1.7.4     codetools_0.2-16   
+ [16] splines_3.6.0       knitr_1.23          shinythemes_1.1.2  
+ [19] bayesplot_1.6.0     nloptr_1.2.1        pROC_1.14.0        
+ [22] shiny_1.2.0         compiler_3.6.0      backports_1.1.3    
+ [25] assertthat_0.2.0    Matrix_1.2-17       lazyeval_0.2.1     
+ [28] cli_1.1.0           later_0.8.0         htmltools_0.3.6    
+ [31] prettyunits_1.0.2   tools_3.6.0         igraph_1.2.4       
+ [34] gtable_0.2.0        glue_1.3.0          reshape2_1.4.3     
+ [37] Rcpp_1.0.0          nlme_3.1-139        iterators_1.0.10   
+ [40] crosstalk_1.0.0     timeDate_3043.102   gower_0.2.1        
+ [43] xfun_0.7            stringr_1.4.0       ps_1.3.0           
+ [46] lme4_1.1-21         mime_0.6            miniUI_0.1.1.1     
+ [49] gtools_3.8.1        tidypredict_0.3.0   MASS_7.3-51.4      
+ [52] zoo_1.8-6           ipred_0.9-8         rstanarm_2.18.2    
+ [55] colourpicker_1.0    promises_1.0.1      parallel_3.6.0     
+ [58] inline_0.3.15       shinystan_2.5.0     tidyposterior_0.0.2
+ [61] gridExtra_2.3       loo_2.0.0           StanHeaders_2.18.1 
+ [64] rpart_4.1-15        stringi_1.4.3       tokenizers_0.2.1   
+ [67] dygraphs_1.1.1.6    foreach_1.4.4       boot_1.3-22        
+ [70] pkgbuild_1.0.2      lava_1.6.5          rlang_0.3.1        
+ [73] pkgconfig_2.0.2     matrixStats_0.54.0  rstantools_1.5.1   
+ [76] htmlwidgets_1.3     processx_3.3.1      tidyselect_0.2.5   
+ [79] plyr_1.8.4          magrittr_1.5        R6_2.4.0           
+ [82] generics_0.0.2      pillar_1.3.1        withr_2.1.2        
+ [85] xts_0.11-2          survival_2.44-1.1   nnet_7.3-12        
+ [88] janeaustenr_0.1.5   crayon_1.3.4        grid_3.6.0         
+ [91] data.table_1.12.2   callr_3.2.0         ModelMetrics_1.2.2 
+ [94] threejs_0.3.1       digest_0.6.18       xtable_1.8-3       
+ [97] httpuv_1.4.5.1      stats4_3.6.0        munsell_0.5.0      
+[100] shinyjs_1.0        
+> 
+> 
+> proc.time()
+   user  system elapsed 
+  3.609   0.274   4.012 

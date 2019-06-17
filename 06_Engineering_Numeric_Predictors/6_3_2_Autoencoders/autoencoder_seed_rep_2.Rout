@@ -1,0 +1,310 @@
+
+R Under development (unstable) (2019-03-18 r76245) -- "Unsuffered Consequences"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # ------------------------------------------------------------------------------
+> # Feature Engineering and Selection: A Practical Approach for Predictive Models
+> # by Max Kuhn and Kjell Johnson
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code for Section 6.3.2 at
+> # https://bookdown.org/max/FES/numeric-many-to-many.html#autoencoders
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code requires these packages: 
+> 
+> library(keras)
+> library(tidymodels)
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
+Registered S3 method overwritten by 'xts':
+  method     from
+  as.zoo.xts zoo 
+── Attaching packages ────────────────────────────────────── tidymodels 0.0.2 ──
+✔ broom     0.5.1       ✔ purrr     0.3.2  
+✔ dials     0.0.2       ✔ recipes   0.1.5  
+✔ dplyr     0.8.0.1     ✔ rsample   0.0.4  
+✔ ggplot2   3.1.0       ✔ tibble    2.1.1  
+✔ infer     0.4.0       ✔ yardstick 0.0.2  
+✔ parsnip   0.0.2       
+── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
+✖ purrr::discard()         masks scales::discard()
+✖ dplyr::filter()          masks stats::filter()
+✖ yardstick::get_weights() masks keras::get_weights()
+✖ dplyr::lag()             masks stats::lag()
+✖ recipes::step()          masks stats::step()
+> library(caret)
+Loading required package: lattice
+
+Attaching package: ‘caret’
+
+The following objects are masked from ‘package:yardstick’:
+
+    precision, recall
+
+The following object is masked from ‘package:purrr’:
+
+    lift
+
+> library(QSARdata)
+> library(kknn)
+
+Attaching package: ‘kknn’
+
+The following object is masked from ‘package:caret’:
+
+    contr.dummy
+
+> 
+> theme_set(theme_bw())
+> 
+> # ------------------------------------------------------------------------------
+> 
+> # The memory requirements are roughly 600MG for the autoencoder calculations and
+> # the K-nearest neighbors fits require about 700MB.
+> 
+> # ------------------------------------------------------------------------------
+> 
+> data(MeltingPoint)
+> 
+> dat <- 
++   MP_Descriptors %>% 
++   mutate(mp = MP_Outcome)
+> 
+> # ------------------------------------------------------------------------------
+> 
+> # Split the data to create a test set
+> set.seed(1344)
+> split_1 <- initial_split(dat, p = 1 - (75/nrow(dat)))
+> split_1
+<4327/74/4401>
+> 
+> unlabeled <- analysis(split_1)
+> labeled   <- assessment(split_1)
+> 
+> set.seed(164)
+> split_2 <- initial_split(labeled, p = 2/3)
+> 
+> training_raw <- analysis(split_2)
+> testing_raw  <- assessment(split_2)
+> 
+> # ------------------------------------------------------------------------------
+> 
+> pp <- 
++   recipe(mp ~ ., data = unlabeled) %>%
++   step_zv(all_predictors()) %>%
++   step_corr(all_predictors(), threshold = .75) %>%
++   step_YeoJohnson(all_predictors()) %>%
++   step_center(all_predictors()) %>%
++   step_scale(all_predictors()) %>%
++   prep(training = unlabeled)
+> 
+> unlabeled <- bake(pp, new_data = unlabeled, all_predictors(), composition = "matrix")
+> training <- bake(pp, new_data = training_raw, all_predictors(), composition = "matrix")
+> testing  <- bake(pp, new_data = testing_raw, all_predictors(), composition = "matrix")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> use_session_with_seed(9977)
+/Users/max/.virtualenvs/r-tensorflow/lib/python2.7/site-packages/h5py/__init__.py:36: FutureWarning: Conversion of the second argument of issubdtype from `float` to `np.floating` is deprecated. In future, it will be treated as `np.float64 == np.dtype(float).type`.
+  from ._conv import register_converters as _register_converters
+Using TensorFlow backend.
+2019-04-13 08:36:32.268778: I tensorflow/core/platform/cpu_feature_guard.cc:137] Your CPU supports instructions that this TensorFlow binary was not compiled to use: SSE4.2 AVX AVX2 FMA
+Set session seed to 9977 (disabled GPU, CPU parallelism)
+> 
+> set.seed(5250)
+> final_model <- keras_model_sequential()
+> final_model %>%
++   layer_dense(
++     units = 512,
++     activation = "tanh",
++     input_shape = ncol(unlabeled),
++     kernel_initializer = keras::initializer_glorot_uniform(seed = 9900)
++   ) %>%
++   layer_dense(
++     units = 512,
++     activation = "tanh",
++     kernel_initializer = keras::initializer_glorot_uniform(seed = 5074)
++   )  %>%
++   layer_dense(
++     units = ncol(unlabeled),
++     activation = "linear",
++     kernel_initializer = keras::initializer_glorot_uniform(seed = 930)
++   ) 
+> 
+> summary(final_model)
+________________________________________________________________________________
+Layer (type)                        Output Shape                    Param #     
+================================================================================
+dense_1 (Dense)                     (None, 512)                     39424       
+________________________________________________________________________________
+dense_2 (Dense)                     (None, 512)                     262656      
+________________________________________________________________________________
+dense_3 (Dense)                     (None, 76)                      38988       
+================================================================================
+Total params: 341,068
+Trainable params: 341,068
+Non-trainable params: 0
+________________________________________________________________________________
+> 
+> final_model %>% 
++   compile(
++     loss = "mean_squared_error", 
++     optimizer = "adam"
++   )
+> 
+> rehistory <- 
++   final_model %>% 
++   fit(
++     x = unlabeled, 
++     y = unlabeled, 
++     epochs = 100, 
++     batch_size = 100,
++     verbose = 0,
++     validation_split = 0.2
++   )
+> 
+> # ------------------------------------------------------------------------------
+> 
+> pred_train <- predict(final_model, training)
+> pred_test  <- predict(final_model, testing)
+> 
+> train_data <- 
++   pred_train %>% 
++   as.data.frame() %>% 
++   mutate(mp = training_raw$mp)
+> 
+> test_data <- 
++   pred_test %>% 
++   as.data.frame() %>% 
++   mutate(mp = testing_raw$mp)
+> 
+> # ------------------------------------------------------------------------------
+> 
+> ctrl <- trainControl(method = "repeatedcv", repeats = 10)
+> 
+> knn_grid <- expand.grid(kmax = 1:15,
++                         distance = 2,
++                         kernel = c("rectangular"))
+> 
+> set.seed(633)
+> knn_orig <- train(mp ~ ., data = training_raw,
++                   method = "kknn",
++                   preProc = c("center", "scale", "zv"),
++                   tuneGrid = knn_grid,
++                   trControl = ctrl)
+> 
+> set.seed(633)
+> knn_auto <- train(mp ~ ., data = train_data,
++                   method = "kknn",
++                   preProc = c("center", "scale", "zv"),
++                   tuneGrid = knn_grid,
++                   trControl = ctrl)
+> 
+> # ------------------------------------------------------------------------------
+> 
+> getTrainPerf(knn_orig)
+  TrainRMSE TrainRsquared TrainMAE method
+1  58.03685     0.3717376 48.96959   kknn
+> getTrainPerf(knn_auto)
+  TrainRMSE TrainRsquared TrainMAE method
+1  53.57279     0.4424993 45.12544   kknn
+> compare_models(knn_orig, knn_auto)
+
+	One Sample t-test
+
+data:  x
+t = 4.2747, df = 99, p-value = 4.411e-05
+alternative hypothesis: true mean is not equal to 0
+95 percent confidence interval:
+ 2.391945 6.536186
+sample estimates:
+mean of x 
+ 4.464065 
+
+> 
+> # ------------------------------------------------------------------------------
+> 
+> sessionInfo()
+R Under development (unstable) (2019-03-18 r76245)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS High Sierra 10.13.6
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] kknn_1.3.1       QSARdata_1.3     caret_6.0-82     lattice_0.20-38 
+ [5] yardstick_0.0.2  tibble_2.1.1     rsample_0.0.4    tidyr_0.8.3     
+ [9] recipes_0.1.5    purrr_0.3.2      parsnip_0.0.2    infer_0.4.0     
+[13] ggplot2_3.1.0    dplyr_0.8.0.1    dials_0.0.2      scales_1.0.0    
+[17] broom_0.5.1      tidymodels_0.0.2 keras_2.2.4     
+
+loaded via a namespace (and not attached):
+  [1] minqa_1.2.4         colorspace_1.4-1    class_7.3-15       
+  [4] ggridges_0.5.1      rsconnect_0.8.13    markdown_0.9       
+  [7] base64enc_0.1-3     tidytext_0.2.0      rstudioapi_0.10    
+ [10] rstan_2.18.2        SnowballC_0.6.0     DT_0.5             
+ [13] prodlim_2018.04.18  lubridate_1.7.4     codetools_0.2-16   
+ [16] splines_3.6.0       knitr_1.22          shinythemes_1.1.2  
+ [19] zeallot_0.1.0       bayesplot_1.6.0     jsonlite_1.6       
+ [22] nloptr_1.2.1        pROC_1.14.0         tfruns_1.4         
+ [25] shiny_1.2.0         compiler_3.6.0      backports_1.1.3    
+ [28] assertthat_0.2.1    Matrix_1.2-16       lazyeval_0.2.2     
+ [31] cli_1.1.0           later_0.8.0         htmltools_0.3.6    
+ [34] prettyunits_1.0.2   tools_3.6.0         igraph_1.2.4       
+ [37] gtable_0.2.0        glue_1.3.1          reshape2_1.4.3     
+ [40] Rcpp_1.0.1          nlme_3.1-137        iterators_1.0.10   
+ [43] crosstalk_1.0.0     timeDate_3043.102   gower_0.2.0        
+ [46] xfun_0.5            stringr_1.4.0       ps_1.3.0           
+ [49] lme4_1.1-20         mime_0.6            miniUI_0.1.1.1     
+ [52] gtools_3.8.1        tidypredict_0.3.0   MASS_7.3-51.4      
+ [55] zoo_1.8-5           ipred_0.9-8         rstanarm_2.18.2    
+ [58] colourpicker_1.0    promises_1.0.1      parallel_3.6.0     
+ [61] inline_0.3.15       shinystan_2.5.0     tidyposterior_0.0.2
+ [64] reticulate_1.11     gridExtra_2.3       loo_2.0.0          
+ [67] StanHeaders_2.18.1  rpart_4.1-13        stringi_1.4.3      
+ [70] tokenizers_0.2.1    tensorflow_1.10     dygraphs_1.1.1.6   
+ [73] foreach_1.4.4       pkgbuild_1.0.3      lava_1.6.5         
+ [76] rlang_0.3.3         pkgconfig_2.0.2     matrixStats_0.54.0 
+ [79] rstantools_1.5.1    htmlwidgets_1.3     processx_3.3.0     
+ [82] tidyselect_0.2.5    plyr_1.8.4          magrittr_1.5       
+ [85] R6_2.4.0            generics_0.0.2      pillar_1.3.1       
+ [88] whisker_0.3-2       withr_2.1.2         xts_0.11-2         
+ [91] survival_2.43-3     nnet_7.3-12         janeaustenr_0.1.5  
+ [94] crayon_1.3.4        grid_3.6.0          data.table_1.12.0  
+ [97] callr_3.2.0         ModelMetrics_1.2.2  threejs_0.3.1      
+[100] digest_0.6.18       xtable_1.8-3        httpuv_1.4.5.1     
+[103] stats4_3.6.0        munsell_0.5.0       shinyjs_1.0        
+> 
+> q("no")
+> proc.time()
+   user  system elapsed 
+144.814   3.393 148.176 
