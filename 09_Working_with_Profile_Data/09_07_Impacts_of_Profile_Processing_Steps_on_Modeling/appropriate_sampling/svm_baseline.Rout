@@ -1,0 +1,157 @@
+
+R Under development (unstable) (2019-03-18 r76245) -- "Unsuffered Consequences"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(caret)
+Loading required package: lattice
+Loading required package: ggplot2
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
+> library(recipes)
+Loading required package: dplyr
+
+Attaching package: ‘dplyr’
+
+The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+
+Attaching package: ‘recipes’
+
+The following object is masked from ‘package:stats’:
+
+    step
+
+> library(doParallel)
+Loading required package: foreach
+Loading required package: iterators
+Loading required package: parallel
+> cl <- makePSOCKcluster(parallel::detectCores() - 2)
+> registerDoParallel(cl)
+> 
+> # ------------------------------------------------------------------------------
+> 
+> load("../../../Data_Sets/Pharmaceutical_Manufacturing_Monitoring/baseline_corr.RData")
+> load("../../../Data_Sets/Pharmaceutical_Manufacturing_Monitoring/resample_ind.RData")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> rec <- 
++   recipe(Glucose ~ ., data = small_baseline) %>% 
++   update_role(Reactor, new_role = "ID") %>% 
++   step_center(all_predictors()) %>% 
++   step_scale(all_predictors()) %>%
++   step_corr(all_predictors()) %>%
++   step_nzv(all_predictors())
+> 
+> # ------------------------------------------------------------------------------
+> 
+> ctrl <- trainControl(method = "cv",
++                      index = resample_ind,
++                      savePredictions = TRUE,
++                      search = "random",
++                      trim = TRUE)
+> 
+> # ------------------------------------------------------------------------------
+> 
+> set.seed(3523)
+> mod_fit <- 
++   train(
++     rec, 
++     data = small_baseline,
++     method = "svmRadial",
++     tuneLength = 50,
++     trControl = ctrl
++   )
+Loading required namespace: kernlab
+> 
+> test_pred <- 
++   large_baseline %>% 
++   mutate(Predicted = predict(mod_fit, large_baseline)) %>% 
++   dplyr::select(Predicted, Glucose, Reactor, Day)
+> 
+> # Trim model objects to make smaller -------------------------------------------
+> 
+> mod_fit$recipe$template <- NULL
+> n_steps <- length(mod_fit$recipe$steps)
+> for (i in 1:n_steps) {
++   n_terms <- length(mod_fit$recipe$steps[[i]]$terms)
++   for (j in 1:n_terms)
++     attr(mod_fit$recipe$steps[[i]]$terms[[j]], ".Environment") <- emptyenv()
++ }
+> mod_fit$control$index <- NULL
+> mod_fit$control$indexOut <- NULL
+> 
+> # ------------------------------------------------------------------------------
+> 
+> model <- "svm"
+> predictors <- "baseline"
+> 
+> save(mod_fit, test_pred, model, predictors, file = "svm_baseline.RData")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> sessionInfo()
+R Under development (unstable) (2019-03-18 r76245)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS High Sierra 10.13.6
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] parallel  stats     graphics  grDevices utils     datasets  methods  
+[8] base     
+
+other attached packages:
+[1] doParallel_1.0.14 iterators_1.0.10  foreach_1.4.4     recipes_0.1.5    
+[5] dplyr_0.8.0.1     caret_6.0-82      ggplot2_3.1.0     lattice_0.20-38  
+
+loaded via a namespace (and not attached):
+ [1] Rcpp_1.0.1         pillar_1.3.1       compiler_3.6.0     gower_0.2.0       
+ [5] plyr_1.8.4         tools_3.6.0        class_7.3-15       rpart_4.1-13      
+ [9] ipred_0.9-8        lubridate_1.7.4    tibble_2.1.1       nlme_3.1-137      
+[13] gtable_0.2.0       pkgconfig_2.0.2    rlang_0.3.3        Matrix_1.2-16     
+[17] prodlim_2018.04.18 stringr_1.4.0      withr_2.1.2        generics_0.0.2    
+[21] stats4_3.6.0       grid_3.6.0         nnet_7.3-12        tidyselect_0.2.5  
+[25] data.table_1.12.0  glue_1.3.1         R6_2.4.0           survival_2.43-3   
+[29] lava_1.6.5         kernlab_0.9-27     tidyr_0.8.3        reshape2_1.4.3    
+[33] purrr_0.3.2        magrittr_1.5       ModelMetrics_1.2.2 scales_1.0.0      
+[37] codetools_0.2-16   MASS_7.3-51.4      splines_3.6.0      assertthat_0.2.1  
+[41] timeDate_3043.102  colorspace_1.4-1   stringi_1.4.3      lazyeval_0.2.2    
+[45] munsell_0.5.0      crayon_1.3.4      
+> 
+> # ------------------------------------------------------------------------------
+> 
+> if (!interactive())
++   q("no")
+> proc.time()
+   user  system elapsed 
+ 17.605   1.374 677.487 
