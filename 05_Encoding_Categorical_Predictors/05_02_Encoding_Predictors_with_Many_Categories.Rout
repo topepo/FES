@@ -1,0 +1,263 @@
+WARNING: unknown option '-vaniila'
+
+
+R version 3.6.0 (2019-04-26) -- "Planting of a Tree"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # ------------------------------------------------------------------------------
+> # Feature Engineering and Selection: A Practical Approach for Predictive Models
+> # by Max Kuhn and Kjell Johnson
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code for Section 5.2 at
+> # https://bookdown.org/max/FES/encoding-predictors-with-many-categories.html
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code requires these packages: 
+> 
+> library(tidymodels)
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
+Registered S3 method overwritten by 'xts':
+  method     from
+  as.zoo.xts zoo 
+── Attaching packages ────────────────────────────────────── tidymodels 0.0.2 ──
+✔ broom     0.5.1       ✔ purrr     0.3.1  
+✔ dials     0.0.2       ✔ recipes   0.1.5  
+✔ dplyr     0.8.0.1     ✔ rsample   0.0.4  
+✔ ggplot2   3.1.0       ✔ tibble    2.0.1  
+✔ infer     0.4.0       ✔ yardstick 0.0.2  
+✔ parsnip   0.0.1       
+── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
+✖ purrr::discard() masks scales::discard()
+✖ dplyr::filter()  masks stats::filter()
+✖ dplyr::lag()     masks stats::lag()
+✖ recipes::step()  masks stats::step()
+> library(FeatureHashing)
+> library(stringr)
+
+Attaching package: ‘stringr’
+
+The following object is masked from ‘package:recipes’:
+
+    fixed
+
+> 
+> options(width = 150)
+> 
+> # Create example data ----------------------------------------------------------
+> 
+> load("../Data_Sets/OkCupid/okc.RData")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> # Make small example data set
+> 
+> sample_towns <- c(
++   'alameda', 'belmont', 'benicia', 'berkeley', 'castro_valley', 'daly_city', 
++   'emeryville', 'fairfax', 'martinez', 'menlo_park', 'mountain_view', 'oakland', 
++   'other', 'palo_alto', 'san_francisco', 'san_leandro', 'san_mateo', 
++   'san_rafael', 'south_san_francisco', 'walnut_creek'
++ )
+> 
+> location <- 
++   okc_train %>% 
++   dplyr::select(where_town) %>% 
++   distinct(where_town) %>% 
++   arrange(where_town)
+> 
+> # ------------------------------------------------------------------------------
+> # Create hash features using binary representations
+> 
+> binary_hashes <-
++   hashed.model.matrix(
++     ~ where_town,
++     data = location,
++     hash.size = 2 ^ 4,
++     signed.hash = FALSE,
++     create.mapping = TRUE
++   )
+> 
+> binary_mapping <- hash.mapping(binary_hashes)
+> names(binary_mapping) <- str_remove(names(binary_mapping), "where_town")
+> binary_calcs <- 
++   binary_mapping %>% 
++   enframe() %>% 
++   set_names(c("town", "column_num_16")) %>% 
++   mutate(integer_16 = hashed.value(names(binary_mapping))) %>% 
++   dplyr::filter(town %in% sample_towns) %>% 
++   arrange(town)
+> 
+> # Table 5.2
+> # https://bookdown.org/max/FES/encoding-predictors-with-many-categories.html#tab:categorical-hash-values
+> 
+> binary_calcs
+# A tibble: 20 x 3
+   town                column_num_16  integer_16
+   <chr>                       <dbl>       <int>
+ 1 alameda                         5 -1558231019
+ 2 belmont                        15    72189212
+ 3 benicia                         4   607574799
+ 4 berkeley                        9 -2052062524
+ 5 castro_valley                  12  1102009561
+ 6 daly_city                      15   -38036056
+ 7 emeryville                     13   684830353
+ 8 fairfax                         2  -505849801
+ 9 martinez                        2   448917674
+10 menlo_park                     14   546433950
+11 mountain_view                  15  -765832586
+12 oakland                        12  -670172863
+13 other                           9  -642234315
+14 palo_alto                       2   -68911529
+15 san_francisco                   6  2072229076
+16 san_leandro                    14 -1977663578
+17 san_mateo                       3   -71296949
+18 san_rafael                     16  -627080467
+19 south_san_francisco             9 -1428218516
+20 walnut_creek                    2   396910311
+> 
+> binary_df <- 
++   binary_hashes %>% 
++   as.matrix() %>% 
++   as_tibble() %>% 
++   bind_cols(location) %>% 
++   dplyr::rename(town = where_town) %>% 
++   dplyr::filter(town %in% sample_towns) %>% 
++   arrange(town)
+> 
+> # Table 5.3
+> # https://bookdown.org/max/FES/encoding-predictors-with-many-categories.html#tab:categorical-hash-values
+> binary_df
+# A tibble: 20 x 17
+     `1`   `2`   `3`   `4`   `5`   `6`   `7`   `8`   `9`  `10`  `11`  `12`  `13`  `14`  `15`  `16` town               
+   <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <fct>              
+ 1     1     0     0     0     1     0     0     0     0     0     0     0     0     0     0     0 alameda            
+ 2     1     0     0     0     0     0     0     0     0     0     0     0     0     0     1     0 belmont            
+ 3     1     0     0     1     0     0     0     0     0     0     0     0     0     0     0     0 benicia            
+ 4     1     0     0     0     0     0     0     0     1     0     0     0     0     0     0     0 berkeley           
+ 5     1     0     0     0     0     0     0     0     0     0     0     1     0     0     0     0 castro_valley      
+ 6     1     0     0     0     0     0     0     0     0     0     0     0     0     0     1     0 daly_city          
+ 7     1     0     0     0     0     0     0     0     0     0     0     0     1     0     0     0 emeryville         
+ 8     1     1     0     0     0     0     0     0     0     0     0     0     0     0     0     0 fairfax            
+ 9     1     1     0     0     0     0     0     0     0     0     0     0     0     0     0     0 martinez           
+10     1     0     0     0     0     0     0     0     0     0     0     0     0     1     0     0 menlo_park         
+11     1     0     0     0     0     0     0     0     0     0     0     0     0     0     1     0 mountain_view      
+12     1     0     0     0     0     0     0     0     0     0     0     1     0     0     0     0 oakland            
+13     1     0     0     0     0     0     0     0     1     0     0     0     0     0     0     0 other              
+14     1     1     0     0     0     0     0     0     0     0     0     0     0     0     0     0 palo_alto          
+15     1     0     0     0     0     1     0     0     0     0     0     0     0     0     0     0 san_francisco      
+16     1     0     0     0     0     0     0     0     0     0     0     0     0     1     0     0 san_leandro        
+17     1     0     1     0     0     0     0     0     0     0     0     0     0     0     0     0 san_mateo          
+18     1     0     0     0     0     0     0     0     0     0     0     0     0     0     0     1 san_rafael         
+19     1     0     0     0     0     0     0     0     1     0     0     0     0     0     0     0 south_san_francisco
+20     1     1     0     0     0     0     0     0     0     0     0     0     0     0     0     0 walnut_creek       
+> 
+> # ------------------------------------------------------------------------------
+> # Create hash features using signed integer representations
+> 
+> signed_hashes <-
++   hashed.model.matrix(
++     ~ where_town,
++     data = location,
++     hash.size = 2 ^ 4,
++     signed.hash = TRUE
++   )
+> 
+> signed_df <- 
++   signed_hashes %>% 
++   as.matrix() %>% 
++   as_tibble() %>% 
++   bind_cols(location) %>% 
++   dplyr::rename(town = where_town) %>% 
++   dplyr::filter(town %in% sample_towns) %>% 
++   arrange(town)
+> 
+> # Table 5.4
+> # https://bookdown.org/max/FES/encoding-predictors-with-many-categories.html#tab:categorical-hash-values
+> signed_df
+# A tibble: 20 x 17
+     `1`   `2`   `3`   `4`   `5`   `6`   `7`   `8`   `9`  `10`  `11`  `12`  `13`  `14`  `15`  `16` town               
+   <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <fct>              
+ 1     1     0     0     0     1     0     0     0     0     0     0     0     0     0     0     0 alameda            
+ 2     1     0     0     0     0     0     0     0     0     0     0     0     0     0     1     0 belmont            
+ 3     1     0     0     1     0     0     0     0     0     0     0     0     0     0     0     0 benicia            
+ 4     1     0     0     0     0     0     0     0    -1     0     0     0     0     0     0     0 berkeley           
+ 5     1     0     0     0     0     0     0     0     0     0     0    -1     0     0     0     0 castro_valley      
+ 6     1     0     0     0     0     0     0     0     0     0     0     0     0     0     1     0 daly_city          
+ 7     1     0     0     0     0     0     0     0     0     0     0     0     1     0     0     0 emeryville         
+ 8     1    -1     0     0     0     0     0     0     0     0     0     0     0     0     0     0 fairfax            
+ 9     1     1     0     0     0     0     0     0     0     0     0     0     0     0     0     0 martinez           
+10     1     0     0     0     0     0     0     0     0     0     0     0     0     1     0     0 menlo_park         
+11     1     0     0     0     0     0     0     0     0     0     0     0     0     0    -1     0 mountain_view      
+12     1     0     0     0     0     0     0     0     0     0     0     1     0     0     0     0 oakland            
+13     1     0     0     0     0     0     0     0     1     0     0     0     0     0     0     0 other              
+14     1     1     0     0     0     0     0     0     0     0     0     0     0     0     0     0 palo_alto          
+15     1     0     0     0     0    -1     0     0     0     0     0     0     0     0     0     0 san_francisco      
+16     1     0     0     0     0     0     0     0     0     0     0     0     0    -1     0     0 san_leandro        
+17     1     0     1     0     0     0     0     0     0     0     0     0     0     0     0     0 san_mateo          
+18     1     0     0     0     0     0     0     0     0     0     0     0     0     0     0    -1 san_rafael         
+19     1     0     0     0     0     0     0     0    -1     0     0     0     0     0     0     0 south_san_francisco
+20     1     1     0     0     0     0     0     0     0     0     0     0     0     0     0     0 walnut_creek       
+> 
+> # ------------------------------------------------------------------------------
+> 
+> sessionInfo()
+R version 3.6.0 (2019-04-26)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS Mojave 10.14.5
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] stringr_1.4.0          FeatureHashing_0.9.1.3 yardstick_0.0.2        tibble_2.0.1           rsample_0.0.4          tidyr_0.8.3           
+ [7] recipes_0.1.5          purrr_0.3.1            parsnip_0.0.1          infer_0.4.0            ggplot2_3.1.0          dplyr_0.8.0.1         
+[13] dials_0.0.2            scales_1.0.0           broom_0.5.1            tidymodels_0.0.2      
+
+loaded via a namespace (and not attached):
+ [1] minqa_1.2.4         colorspace_1.4-1    class_7.3-15        ggridges_0.5.1      rsconnect_0.8.13    markdown_0.9        base64enc_0.1-3    
+ [8] tidytext_0.2.0      rstudioapi_0.9.0    rstan_2.18.2        SnowballC_0.6.0     DT_0.5              fansi_0.4.0         prodlim_2018.04.18 
+[15] lubridate_1.7.4     codetools_0.2-16    splines_3.6.0       knitr_1.23          shinythemes_1.1.2   bayesplot_1.6.0     nloptr_1.2.1       
+[22] pROC_1.15.0         shiny_1.2.0         compiler_3.6.0      backports_1.1.3     assertthat_0.2.0    Matrix_1.2-17       lazyeval_0.2.1     
+[29] cli_1.1.0           later_0.8.0         htmltools_0.3.6     prettyunits_1.0.2   tools_3.6.0         igraph_1.2.4        gtable_0.2.0       
+[36] glue_1.3.0          reshape2_1.4.3      Rcpp_1.0.0          nlme_3.1-139        crosstalk_1.0.0     timeDate_3043.102   gower_0.2.1        
+[43] xfun_0.7            ps_1.3.0            lme4_1.1-21         mime_0.6            miniUI_0.1.1.1      gtools_3.8.1        tidypredict_0.3.0  
+[50] MASS_7.3-51.4       zoo_1.8-6           ipred_0.9-8         rstanarm_2.18.2     colourpicker_1.0    promises_1.0.1      parallel_3.6.0     
+[57] inline_0.3.15       shinystan_2.5.0     tidyposterior_0.0.2 gridExtra_2.3       loo_2.0.0           StanHeaders_2.18.1  rpart_4.1-15       
+[64] stringi_1.4.3       tokenizers_0.2.1    dygraphs_1.1.1.6    boot_1.3-22         pkgbuild_1.0.2      lava_1.6.5          rlang_0.3.1        
+[71] pkgconfig_2.0.2     matrixStats_0.54.0  lattice_0.20-38     rstantools_1.5.1    htmlwidgets_1.3     processx_3.3.1      tidyselect_0.2.5   
+[78] plyr_1.8.4          magrittr_1.5        R6_2.4.0            generics_0.0.2      pillar_1.3.1        withr_2.1.2         xts_0.11-2         
+[85] survival_2.44-1.1   nnet_7.3-12         janeaustenr_0.1.5   crayon_1.3.4        utf8_1.1.4          grid_3.6.0          callr_3.2.0        
+[92] threejs_0.3.1       digest_0.6.18       xtable_1.8-3        httpuv_1.4.5.1      stats4_3.6.0        munsell_0.5.0       shinyjs_1.0        
+> 
+> 
+> proc.time()
+   user  system elapsed 
+  4.349   0.234   4.581 

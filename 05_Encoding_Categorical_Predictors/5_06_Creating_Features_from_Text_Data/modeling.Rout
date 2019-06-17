@@ -1,0 +1,533 @@
+
+R Under development (unstable) (2019-03-18 r76245) -- "Unsuffered Consequences"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # ------------------------------------------------------------------------------
+> # Feature Engineering and Selection: A Practical Approach for Predictive Models
+> # by Max Kuhn and Kjell Johnson
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code for Section 5.6 at
+> # https://bookdown.org/max/FES/encoding-categorical-predictors.html#text-data
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code requires these packages: 
+> 
+> library(caret)
+Loading required package: lattice
+Loading required package: ggplot2
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
+> library(tidymodels)
+Registered S3 method overwritten by 'xts':
+  method     from
+  as.zoo.xts zoo 
+── Attaching packages ────────────────────────────────────── tidymodels 0.0.2 ──
+✔ broom     0.5.1       ✔ purrr     0.3.2  
+✔ dials     0.0.2       ✔ recipes   0.1.5  
+✔ dplyr     0.8.0.1     ✔ rsample   0.0.4  
+✔ infer     0.4.0       ✔ tibble    2.1.1  
+✔ parsnip   0.0.2       ✔ yardstick 0.0.2  
+── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
+✖ purrr::discard()       masks scales::discard()
+✖ dplyr::filter()        masks stats::filter()
+✖ dplyr::lag()           masks stats::lag()
+✖ purrr::lift()          masks caret::lift()
+✖ yardstick::precision() masks caret::precision()
+✖ yardstick::recall()    masks caret::recall()
+✖ recipes::step()        masks stats::step()
+> library(keras)
+
+Attaching package: ‘keras’
+
+The following object is masked from ‘package:yardstick’:
+
+    get_weights
+
+> library(doParallel)
+Loading required package: foreach
+
+Attaching package: ‘foreach’
+
+The following objects are masked from ‘package:purrr’:
+
+    accumulate, when
+
+Loading required package: iterators
+Loading required package: parallel
+> 
+> # ------------------------------------------------------------------------------
+> 
+> # During modeling using keras, the estimated memory usage in the main R session
+> # peaked at 1.8 GB. When parallel processing is used for glm and knn models, 
+> # each worker process also required about 1.8 GB. 
+> 
+> # ------------------------------------------------------------------------------
+> 
+> load("../../Data_Sets/OkCupid/okc.RData")
+> load("../../Data_Sets/OkCupid/okc_other.RData")
+> load("../../Data_Sets/OkCupid/okc_binary.RData")
+> load("../../Data_Sets/OkCupid/okc_features.RData")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> okc_train <-
++   okc_train %>%
++   full_join(okc_train_binary) %>%
++   full_join(basic_features_train) %>%
++   arrange(profile) %>%
++   dplyr::select(-profile)
+Joining, by = "profile"
+Joining, by = "profile"
+> 
+> # create feature sets
+> 
+> basic_feat <- names(okc_test)
+> basic_feat <- basic_feat[!(basic_feat %in% c("Class", "profile", "essay_length", "where_state"))]
+> 
+> # keywords only
+> 
+> keyword_feat <- names(okc_train_binary)
+> keyword_feat <- keyword_feat[keyword_feat != "profile"]
+> 
+> text_feat <-
++   c("n_urls", "n_hashtags", "n_mentions", "n_commas", "n_digits",
++     "n_exclaims", "n_extraspaces", "n_lowers", "n_lowersp", "n_periods",
++     "n_words", "n_puncts", "n_charsperword")
+> 
+> sent_feat <-
++   c("sent_afinn", "sent_bing", "n_polite", "n_first_person", "n_first_personp",
++     "n_second_person", "n_second_personp", "n_third_person", "n_prepositions")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> many_stats <-
++   function(data, lev = levels(data$obs), model = NULL) {
++     c(
++       twoClassSummary(data = data, lev = levels(data$obs), model),
++       prSummary(data = data, lev = levels(data$obs), model),
++       mnLogLoss(data = data, lev = levels(data$obs), model),
++       defaultSummary(data = data, lev = levels(data$obs), model)
++     )
++   }
+> 
+> okc_ctrl <- trainControl(
++   method = "cv",
++   classProbs = TRUE,
++   summaryFunction = many_stats,
++   returnData = FALSE,
++   trim = TRUE,
++   sampling = "down"
++ )
+> 
+> # ------------------------------------------------------------------------------
+> ## First run a tensorflow model (since it cannot be run in parallel
+> ## via foreach)
+> 
+> ## Recipe for the keywords that normalizes the predictors at the end
+> 
+> keyword_norm <-
++   recipe(Class ~ .,
++          data = okc_train[, c("Class", basic_feat, keyword_feat)]) %>%
++   step_YeoJohnson(all_numeric()) %>%
++   step_other(where_town) %>%
++   step_dummy(all_nominal(), -all_outcomes()) %>%
++   step_zv(all_predictors()) %>%
++   step_center(all_predictors()) %>%
++   step_scale(all_predictors())
+> 
+> okc_ctrl_rand <- okc_ctrl
+> okc_ctrl_rand$search <- "random"
+> 
+> set.seed(49)
+> mlp_keyword <-
++   train(
++     keyword_norm,
++     data = okc_train,
++     method = "mlpKerasDropout",
++     metric = "ROC",
++     tuneLength = 20,
++     trControl = okc_ctrl_rand,
++     verbose = 0,
++     epochs = 500
++   )
+/Users/max/.virtualenvs/r-tensorflow/lib/python2.7/site-packages/h5py/__init__.py:36: FutureWarning: Conversion of the second argument of issubdtype from `float` to `np.floating` is deprecated. In future, it will be treated as `np.float64 == np.dtype(float).type`.
+  from ._conv import register_converters as _register_converters
+Using TensorFlow backend.
+2019-04-05 22:33:20.334590: I tensorflow/core/platform/cpu_feature_guard.cc:137] Your CPU supports instructions that this TensorFlow binary was not compiled to use: SSE4.2 AVX AVX2 FMA
+/Users/max/.virtualenvs/r-tensorflow/lib/python2.7/site-packages/keras/callbacks.py:119: UserWarning: Method on_batch_end() is slow compared to the batch update (0.169882). Check your callbacks.
+  % delta_t_median)
+/Users/max/.virtualenvs/r-tensorflow/lib/python2.7/site-packages/keras/callbacks.py:119: UserWarning: Method on_batch_end() is slow compared to the batch update (0.479053). Check your callbacks.
+  % delta_t_median)
+/Users/max/.virtualenvs/r-tensorflow/lib/python2.7/site-packages/keras/callbacks.py:119: UserWarning: Method on_batch_end() is slow compared to the batch update (0.239799). Check your callbacks.
+  % delta_t_median)
+/Users/max/.virtualenvs/r-tensorflow/lib/python2.7/site-packages/keras/callbacks.py:119: UserWarning: Method on_batch_end() is slow compared to the batch update (0.248867). Check your callbacks.
+  % delta_t_median)
+/Users/max/.virtualenvs/r-tensorflow/lib/python2.7/site-packages/keras/callbacks.py:119: UserWarning: Method on_batch_end() is slow compared to the batch update (0.124625). Check your callbacks.
+  % delta_t_median)
+/Users/max/.virtualenvs/r-tensorflow/lib/python2.7/site-packages/keras/callbacks.py:96: UserWarning: Method on_batch_begin() is slow compared to the batch update (0.148052). Check your callbacks.
+  % delta_t_median)
+/Users/max/.virtualenvs/r-tensorflow/lib/python2.7/site-packages/keras/callbacks.py:96: UserWarning: Method on_batch_begin() is slow compared to the batch update (0.241469). Check your callbacks.
+  % delta_t_median)
+/Users/max/.virtualenvs/r-tensorflow/lib/python2.7/site-packages/keras/callbacks.py:119: UserWarning: Method on_batch_end() is slow compared to the batch update (0.141555). Check your callbacks.
+  % delta_t_median)
+/Users/max/.virtualenvs/r-tensorflow/lib/python2.7/site-packages/keras/callbacks.py:96: UserWarning: Method on_batch_begin() is slow compared to the batch update (0.148781). Check your callbacks.
+  % delta_t_median)
+/Users/max/.virtualenvs/r-tensorflow/lib/python2.7/site-packages/keras/callbacks.py:119: UserWarning: Method on_batch_end() is slow compared to the batch update (0.326164). Check your callbacks.
+  % delta_t_median)
+/Users/max/.virtualenvs/r-tensorflow/lib/python2.7/site-packages/keras/callbacks.py:119: UserWarning: Method on_batch_end() is slow compared to the batch update (0.271934). Check your callbacks.
+  % delta_t_median)
+Warning message:
+In train_rec(rec = x, dat = data, info = trainInfo, method = models,  :
+  There were missing values in resampled performance measures.
+> 
+> # Clean out some objects that are not needed to reduce file size
+> mlp_keyword$recipe$template <- NULL
+> n_steps <- length(mlp_keyword$recipe$steps)
+> for (i in 1:n_steps) {
++   n_terms <- length(mlp_keyword$recipe$steps[[i]]$terms)
++   for (j in 1:n_terms)
++     attr(mlp_keyword$recipe$steps[[i]]$terms[[j]], ".Environment") <- emptyenv()
++ }
+> n_vars <- length(mlp_keyword$recipe$steps[[3]]$levels)
+> for (i in 1:n_vars) {
++   attr(mlp_keyword$recipe$steps[[3]]$levels[[i]], ".Environment") <- emptyenv()
++ }
+> mlp_keyword$control$index <- NULL
+> mlp_keyword$control$indexOut <- NULL
+> 
+> 
+> # For reasons related to tensorflow, the mlp model may not be completely reproducible.
+> # Previous runs of the model selected the same optimal parameters but performance
+> # was slightly different:
+> #
+> # Run  TrainAccuracy TrainKappa  TrainROC
+> # 1        0.7752847  0.4123751 0.8444257
+> # 2        0.7785812  0.4154827 0.8442332
+> # 3        0.7732222  0.4118858 0.8447137
+> 
+> # ------------------------------------------------------------------------------
+> 
+> library(doParallel)
+> cl <- makeForkCluster(nnodes = parallel::detectCores() - 1)
+> registerDoParallel(cl)
+> 
+> # ------------------------------------------------------------------------------
+> # Model with basic profile information. Many count variables so
+> # we estimate possible transfomrations (e.g. sqrt) that might help.
+> 
+> basic_rec <-
++   recipe(Class ~ ., data = okc_train[, c("Class", basic_feat)]) %>%
++   step_YeoJohnson(all_numeric()) %>%
++   step_other(where_town) %>%
++   step_dummy(all_nominal(), -all_outcomes()) %>%
++   step_zv(all_predictors())
+> 
+> set.seed(49)
+> glm_basic <- train(
++   basic_rec,
++   data = okc_train,
++   method = "glm",
++   metric = "ROC",
++   trControl = okc_ctrl
++ )
+> 
+> basic_pred <- ncol(glm_basic$recipe$template) - 1
+> 
+> # Clean out some objects that are not needed to reduce file size
+> glm_basic$recipe$template <- NULL
+> n_steps <- length(glm_basic$recipe$steps)
+> for (i in 1:n_steps) {
++   n_terms <- length(glm_basic$recipe$steps[[i]]$terms)
++   for (j in 1:n_terms)
++     attr(glm_basic$recipe$steps[[i]]$terms[[j]], ".Environment") <- emptyenv()
++ }
+> n_vars <- length(glm_basic$recipe$steps[[3]]$levels)
+> for (i in 1:n_vars) {
++   attr(glm_basic$recipe$steps[[3]]$levels[[i]], ".Environment") <- emptyenv()
++ }
+> glm_basic$control$index <- NULL
+> glm_basic$control$indexOut <- NULL
+> 
+> 
+> # ------------------------------------------------------------------------------
+> ## Now add basic text features
+> 
+> text_rec <-
++   recipe(Class ~ .,
++          data = okc_train[, c("Class", basic_feat, text_feat)]) %>%
++   step_YeoJohnson(all_numeric()) %>%
++   step_other(where_town) %>%
++   step_dummy(all_nominal(), -all_outcomes()) %>%
++   step_zv(all_predictors())
+> 
+> set.seed(49)
+> glm_text <- train(
++   text_rec,
++   data = okc_train,
++   method = "glm",
++   metric = "ROC",
++   trControl = okc_ctrl
++ )
+> 
+> text_pred <- ncol(glm_text$recipe$template) - 1
+> 
+> # Clean out some objects that are not needed to reduce file size
+> glm_text$recipe$template <- NULL
+> n_steps <- length(glm_text$recipe$steps)
+> for (i in 1:n_steps) {
++   n_terms <- length(glm_text$recipe$steps[[i]]$terms)
++   for (j in 1:n_terms)
++     attr(glm_text$recipe$steps[[i]]$terms[[j]], ".Environment") <- emptyenv()
++ }
+> n_vars <- length(glm_text$recipe$steps[[3]]$levels)
+> for (i in 1:n_vars) {
++   attr(glm_text$recipe$steps[[3]]$levels[[i]], ".Environment") <- emptyenv()
++ }
+> glm_text$control$index <- NULL
+> glm_text$control$indexOut <- NULL
+> 
+> 
+> # ------------------------------------------------------------------------------
+> ## Add the derived keyword fields
+> 
+> keyword_rec <-
++   recipe(Class ~ .,
++          data = okc_train[, c("Class", basic_feat, keyword_feat)]) %>%
++   step_YeoJohnson(all_numeric()) %>%
++   step_other(where_town) %>%
++   step_dummy(all_nominal(), -all_outcomes()) %>%
++   step_zv(all_predictors())
+> 
+> okc_ctrl_keep <- okc_ctrl
+> okc_ctrl_keep$savePredictions <- "final"
+> 
+> set.seed(49)
+> glm_keyword <- train(
++   keyword_rec,
++   data = okc_train,
++   method = "glm",
++   metric = "ROC",
++   trControl = okc_ctrl_keep
++ )
+> 
+> keyword_pred <- ncol(glm_keyword$recipe$template) - 1
+> 
+> # Clean out some objects that are not needed to reduce file size
+> glm_keyword$recipe$template <- NULL
+> n_steps <- length(glm_keyword$recipe$steps)
+> for (i in 1:n_steps) {
++   n_terms <- length(glm_keyword$recipe$steps[[i]]$terms)
++   for (j in 1:n_terms)
++     attr(glm_keyword$recipe$steps[[i]]$terms[[j]], ".Environment") <- emptyenv()
++ }
+> n_vars <- length(glm_keyword$recipe$steps[[3]]$levels)
+> for (i in 1:n_vars) {
++   attr(glm_keyword$recipe$steps[[3]]$levels[[i]], ".Environment") <- emptyenv()
++ }
+> glm_keyword$control$index <- NULL
+> glm_keyword$control$indexOut <- NULL
+> 
+> # ------------------------------------------------------------------------------
+> ## and the sentiment analysis
+> 
+> sent_rec <-
++   recipe(Class ~ .,
++          data = okc_train[, c("Class", basic_feat, keyword_feat, sent_feat)]) %>%
++   step_YeoJohnson(all_numeric()) %>%
++   step_other(where_town) %>%
++   step_dummy(all_nominal(), -all_outcomes()) %>%
++   step_zv(all_predictors())
+> 
+> set.seed(49)
+> glm_sent <- train(
++   sent_rec,
++   data = okc_train,
++   method = "glm",
++   metric = "ROC",
++   trControl = okc_ctrl
++ )
+> 
+> sent_pred <- ncol(glm_sent$recipe$template) - 1
+> 
+> # Clean out some objects that are not needed to reduce file size
+> glm_sent$recipe$template <- NULL
+> n_steps <- length(glm_sent$recipe$steps)
+> for (i in 1:n_steps) {
++   n_terms <- length(glm_sent$recipe$steps[[i]]$terms)
++   for (j in 1:n_terms)
++     attr(glm_sent$recipe$steps[[i]]$terms[[j]], ".Environment") <- emptyenv()
++ }
+> n_vars <- length(glm_sent$recipe$steps[[3]]$levels)
+> for (i in 1:n_vars) {
++   attr(glm_sent$recipe$steps[[3]]$levels[[i]], ".Environment") <- emptyenv()
++ }
+> glm_sent$control$index <- NULL
+> glm_sent$control$indexOut <- NULL
+> 
+> # ------------------------------------------------------------------------------
+> ## collect the models and visualize the results
+> 
+> feat_groups <-
++   c("Basic Profile Info", "+ Simple Text Features", "+ Keywords", "+ Keywords\n+ Sentiment")
+> 
+> glm_resamples <-
++   glm_basic$resample %>%
++   mutate(Features = "Basic Profile Info") %>%
++   bind_rows(
++     glm_text$resample %>%
++       mutate(Features = "+ Simple Text Features"),
++     glm_keyword$resample %>%
++       mutate(Features = "+ Keywords"),
++     glm_sent$resample %>%
++       mutate(Features = "+ Keywords\n+ Sentiment")
++   ) %>%
++   mutate(Features = factor(Features, levels = feat_groups))
+> 
+> glm_resamples_mean <-
++   glm_resamples %>%
++   group_by(Features) %>%
++   summarize(ROC = mean(ROC))
+> 
+> # ------------------------------------------------------------------------------
+> ## K-NN
+> 
+> okc_ctrl_rs <- okc_ctrl
+> okc_ctrl_rs$returnResamp <- "all"
+> 
+> set.seed(49)
+> knn_keyword <-
++   train(
++     keyword_norm,
++     data = okc_train,
++     method = "knn",
++     metric = "ROC",
++     tuneGrid = data.frame(k = seq(1, 201, by = 4)),
++     trControl = okc_ctrl_rs
++   )
+> 
+> # Clean out some objects that are not needed to reduce file size
+> knn_keyword$recipe$template <- NULL
+> n_steps <- length(knn_keyword$recipe$steps)
+> for (i in 1:n_steps) {
++   n_terms <- length(knn_keyword$recipe$steps[[i]]$terms)
++   for (j in 1:n_terms)
++     attr(knn_keyword$recipe$steps[[i]]$terms[[j]], ".Environment") <- emptyenv()
++ }
+> n_vars <- length(knn_keyword$recipe$steps[[3]]$levels)
+> for (i in 1:n_vars) {
++   attr(knn_keyword$recipe$steps[[3]]$levels[[i]], ".Environment") <- emptyenv()
++ }
+> knn_keyword$control$index <- NULL
+> knn_keyword$control$indexOut <- NULL
+> 
+> 
+> # ------------------------------------------------------------------------------
+> # Compare two models
+> 
+> okc_dff <- compare_models(mlp_keyword, glm_keyword)
+> 
+> # ------------------------------------------------------------------------------
+> 
+> save(glm_keyword, file = "okc_glm_keyword.RData")
+> save(knn_keyword, file = "okc_knn_keyword.RData")
+> save(mlp_keyword, file = "okc_mlp_keyword.RData")
+> save(glm_basic, file = "okc_glm_basic.RData")
+> save(glm_text, file = "okc_glm_text.RData")
+> save(glm_sent, file = "okc_glm_sent.RData")
+> save(glm_resamples, glm_resamples_mean, basic_pred, text_pred,
++      keyword_pred, sent_pred,
++      file = "okc_glm_rs.RData")
+> save(okc_dff, file = "okc_dff.RData")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> sessionInfo()
+R Under development (unstable) (2019-03-18 r76245)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS High Sierra 10.13.6
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] parallel  stats     graphics  grDevices utils     datasets  methods  
+[8] base     
+
+other attached packages:
+ [1] doParallel_1.0.14 iterators_1.0.10  foreach_1.4.4     keras_2.2.4      
+ [5] yardstick_0.0.2   tibble_2.1.1      rsample_0.0.4     tidyr_0.8.3      
+ [9] recipes_0.1.5     purrr_0.3.2       parsnip_0.0.2     infer_0.4.0      
+[13] dplyr_0.8.0.1     dials_0.0.2       scales_1.0.0      broom_0.5.1      
+[17] tidymodels_0.0.2  caret_6.0-82      ggplot2_3.1.0     lattice_0.20-38  
+
+loaded via a namespace (and not attached):
+  [1] backports_1.1.3     tidytext_0.2.0      plyr_1.8.4         
+  [4] igraph_1.2.4        lazyeval_0.2.2      splines_3.6.0      
+  [7] crosstalk_1.0.0     tfruns_1.4          SnowballC_0.6.0    
+ [10] rstantools_1.5.1    inline_0.3.15       digest_0.6.18      
+ [13] htmltools_0.3.6     rsconnect_0.8.13    gdata_2.18.0       
+ [16] magrittr_1.5        MLmetrics_1.1.1     ROCR_1.0-7         
+ [19] gower_0.2.0         matrixStats_0.54.0  xts_0.11-2         
+ [22] prettyunits_1.0.2   colorspace_1.4-1    xfun_0.5           
+ [25] callr_3.2.0         crayon_1.3.4        jsonlite_1.6       
+ [28] lme4_1.1-20         zeallot_0.1.0       survival_2.43-3    
+ [31] zoo_1.8-5           glue_1.3.1          gtable_0.2.0       
+ [34] ipred_0.9-8         pkgbuild_1.0.3      rstan_2.18.2       
+ [37] miniUI_0.1.1.1      Rcpp_1.0.1          xtable_1.8-3       
+ [40] reticulate_1.11     stats4_3.6.0        lava_1.6.5         
+ [43] StanHeaders_2.18.1  prodlim_2018.04.18  DT_0.5             
+ [46] htmlwidgets_1.3     threejs_0.3.1       gplots_3.0.1.1     
+ [49] pkgconfig_2.0.2     loo_2.0.0           nnet_7.3-12        
+ [52] tidyselect_0.2.5    rlang_0.3.3         reshape2_1.4.3     
+ [55] later_0.8.0         munsell_0.5.0       tools_3.6.0        
+ [58] cli_1.1.0           generics_0.0.2      ggridges_0.5.1     
+ [61] stringr_1.4.0       ModelMetrics_1.2.2  processx_3.3.0     
+ [64] knitr_1.22          caTools_1.17.1.1    nlme_3.1-137       
+ [67] whisker_0.3-2       mime_0.6            rstanarm_2.18.2    
+ [70] tokenizers_0.2.1    compiler_3.6.0      bayesplot_1.6.0    
+ [73] shinythemes_1.1.2   rstudioapi_0.10     e1071_1.7-0.1      
+ [76] tidyposterior_0.0.2 stringi_1.4.3       ps_1.3.0           
+ [79] Matrix_1.2-16       tensorflow_1.10     nloptr_1.2.1       
+ [82] markdown_0.9        shinyjs_1.0         pillar_1.3.1       
+ [85] data.table_1.12.0   bitops_1.0-6        httpuv_1.4.5.1     
+ [88] R6_2.4.0            promises_1.0.1      KernSmooth_2.23-15 
+ [91] gridExtra_2.3       janeaustenr_0.1.5   codetools_0.2-16   
+ [94] colourpicker_1.0    MASS_7.3-51.4       gtools_3.8.1       
+ [97] assertthat_0.2.1    withr_2.1.2         shinystan_2.5.0    
+[100] grid_3.6.0          rpart_4.1-13        timeDate_3043.102  
+[103] class_7.3-15        minqa_1.2.4         pROC_1.14.0        
+[106] tidypredict_0.3.0   shiny_1.2.0         lubridate_1.7.4    
+[109] base64enc_0.1-3     dygraphs_1.1.1.6   
+> 
+> # ------------------------------------------------------------------------------
+> 
+> if (!interactive())
++   q("no")
+> proc.time()
+    user   system  elapsed 
+5822.423 1087.763 6809.941 
