@@ -1,0 +1,97 @@
+
+R version 3.6.0 (2019-04-26) -- "Planting of a Tree"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # ------------------------------------------------------------------------------
+> # Feature Engineering and Selection: A Practical Approach for Predictive Models
+> # by Max Kuhn and Kjell Johnson
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code for Section 8.2 at
+> # https://bookdown.org/max/FES/models-that-are-resistant-to-missing-values.html
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code requires these packages: 
+> 
+> library(caret)
+Loading required package: lattice
+Loading required package: ggplot2
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
+> library(rpart)
+> library(partykit)
+Loading required package: grid
+Loading required package: libcoin
+Loading required package: mvtnorm
+> 
+> # Data used --------------------------------------------------------------------
+> 
+> data(scat)
+> 
+> 
+> # Figure 8.6 -------------------------------------------------------------------
+> # https://bookdown.org/max/FES/models-that-are-resistant-to-missing-values.html#fig:missing-rpart
+> 
+> rpart_mod <- rpart(Species ~ ., data=scat)
+> rpart_party <- as.party(rpart_mod)
+> # plot(rpart_party)
+> 
+> # ------------------------------------------------------------------------------
+> 
+> sessionInfo()
+R version 3.6.0 (2019-04-26)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS Mojave 10.14.5
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] grid      stats     graphics  grDevices utils     datasets  methods  
+[8] base     
+
+other attached packages:
+[1] partykit_1.2-4  mvtnorm_1.0-10  libcoin_1.0-4   rpart_4.1-15   
+[5] caret_6.0-84    ggplot2_3.1.0   lattice_0.20-38
+
+loaded via a namespace (and not attached):
+ [1] Rcpp_1.0.0         pillar_1.3.1       compiler_3.6.0     gower_0.2.1       
+ [5] plyr_1.8.4         tools_3.6.0        iterators_1.0.10   class_7.3-15      
+ [9] ipred_0.9-8        lubridate_1.7.4    tibble_2.0.1       nlme_3.1-139      
+[13] gtable_0.2.0       pkgconfig_2.0.2    rlang_0.3.1        Matrix_1.2-17     
+[17] foreach_1.4.4      prodlim_2018.04.18 stringr_1.4.0      withr_2.1.2       
+[21] dplyr_0.8.0.1      generics_0.0.2     recipes_0.1.5      stats4_3.6.0      
+[25] nnet_7.3-12        tidyselect_0.2.5   data.table_1.12.2  glue_1.3.0        
+[29] R6_2.4.0           survival_2.44-1.1  Formula_1.2-3      lava_1.6.5        
+[33] reshape2_1.4.3     purrr_0.3.1        magrittr_1.5       ModelMetrics_1.2.2
+[37] scales_1.0.0       codetools_0.2-16   MASS_7.3-51.4      splines_3.6.0     
+[41] assertthat_0.2.0   timeDate_3043.102  colorspace_1.4-1   stringi_1.4.3     
+[45] lazyeval_0.2.1     munsell_0.5.0      inum_1.0-0         crayon_1.3.4      
+> 
+> proc.time()
+   user  system elapsed 
+  1.769   0.121   1.883 
