@@ -1,4 +1,8 @@
-Code and Data Sets for [_Feature Engineering and Selection: A Practical Approach for Predictive Models_](https://bookdown.org/max/FES/) by Max Kuhn and Kjell Johnson (2019). 
+<div style="left;"><IMG HEIGHT="250" WIDTH="174" SRC="cover.jpg"></div>
+
+
+Code and Data Sets for [_Feature Engineering and Selection_](https://bookdown.org/max/FES/) by Max Kuhn and Kjell Johnson (2019). 
+
 
 [Link to buy on Amazon](https://www.amazon.com/gp/product/1138079227/ref=as_li_tl?ie=UTF8&tag=apm0a-20&camp=1789&creative=9325&linkCode=as2&creativeASIN=1138079227&linkId=c801e78acfc3bc022dbed02af4851962)
 
