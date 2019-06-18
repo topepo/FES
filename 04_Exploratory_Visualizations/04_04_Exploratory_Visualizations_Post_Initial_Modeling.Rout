@@ -1,0 +1,300 @@
+
+R version 3.6.0 (2019-04-26) -- "Planting of a Tree"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # ------------------------------------------------------------------------------
+> # Feature Engineering and Selection: A Practical Approach for Predictive Models
+> # by Max Kuhn and Kjell Johnson
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code for Section 4.4 at
+> # https://bookdown.org/max/FES/post-modeling.html
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code requires these packages: 
+> 
+> library(tidymodels)
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
+Registered S3 method overwritten by 'xts':
+  method     from
+  as.zoo.xts zoo 
+── Attaching packages ────────────────────────────────────── tidymodels 0.0.2 ──
+✔ broom     0.5.1       ✔ purrr     0.3.1  
+✔ dials     0.0.2       ✔ recipes   0.1.5  
+✔ dplyr     0.8.0.1     ✔ rsample   0.0.4  
+✔ ggplot2   3.1.0       ✔ tibble    2.0.1  
+✔ infer     0.4.0       ✔ yardstick 0.0.2  
+✔ parsnip   0.0.1       
+── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
+✖ purrr::discard() masks scales::discard()
+✖ dplyr::filter()  masks stats::filter()
+✖ dplyr::lag()     masks stats::lag()
+✖ recipes::step()  masks stats::step()
+> library(lubridate)
+
+Attaching package: ‘lubridate’
+
+The following object is masked from ‘package:base’:
+
+    date
+
+> library(gridExtra)
+
+Attaching package: ‘gridExtra’
+
+The following object is masked from ‘package:dplyr’:
+
+    combine
+
+> library(caret)
+Loading required package: lattice
+
+Attaching package: ‘caret’
+
+The following objects are masked from ‘package:yardstick’:
+
+    precision, recall
+
+The following object is masked from ‘package:purrr’:
+
+    lift
+
+> 
+> theme_set(theme_bw())
+> 
+> # ------------------------------------------------------------------------------
+> 
+> load(file.path("..", "Data_Sets", "Chicago_trains", "chicago.RData"))
+> load(file.path("..", "Data_Sets", "Chicago_trains", "stations.RData"))
+> 
+> # ------------------------------------------------------------------------------
+> 
+> holidays <- 
++   c("USNewYearsDay", "Jan02_Mon_Fri", "USMLKingsBirthday", 
++     "USPresidentsDay", "USMemorialDay", "USIndependenceDay", 
++     "Jul03_Mon_Fri", "Jul05_Mon_Fri", "USLaborDay", "USThanksgivingDay", 
++     "Day_after_Thx", "ChristmasEve", "USChristmasDay", "Dec26_wkday", 
++     "Dec31_Mon_Fri")
+> 
+> common_holiday <- 
++   apply(training %>% dplyr::select(one_of(holidays)), 1, 
++         function(x) ifelse(any(x == 1), 1, 0))
+> 
+> training <-
++   training %>% 
++   mutate(
++     holiday  = common_holiday, 
++     weekday = ifelse(dow %in% c("Sat", "Sun"), 0, 1)
++   )
+> 
+> # ------------------------------------------------------------------------------
+> 
+> get_resid <- function(terms, next_term, return_mod = FALSE) {
++   ctrl$verboseIter <- FALSE
++   ctrl$predictionBounds <- c(0, NA)
++   
++   set.seed(4194)
++   mod <- train(s_40380 ~ .,
++                data = training[, c("s_40380", terms)],
++                method = "lm",
++                metric = "RMSE",
++                maximize = FALSE,
++                trControl = ctrl)
++   
++   x_mod <- train(as.formula(paste(next_term,"~ .")),
++                  data = training[, c(terms, next_term)],
++                  method = "lm",
++                  metric = "RMSE",
++                  maximize = FALSE,
++                  trControl = ctrl)
++   
++   if(!return_mod) {
++     out <- mod$pred
++     out$Resample <- ymd(out$Resample)
++     out$Date <- train_days[out$rowIndex]
++     out$Month <- training$month[out$rowIndex]
++     out$holiday <- training$holiday[out$rowIndex]
++     out$weekday <- training$weekday[out$rowIndex]
++     out$Residual <- out$obs - out$pred
++     out$xResidual <- x_mod$pred$obs - x_mod$pred$pred
++   } else out <- mod
++   out
++ }
+> 
+> # ------------------------------------------------------------------------------
+> 
+> # There will be a warning about the "outcome only has two possible values". 
+> # This can be ignored.
+> base_resid <-
++   get_resid(terms = c("year", "month", "week"),  next_term = "weekday") %>%
++   mutate(Model = "Base Model")
+Warning message:
+In train.default(x, y, weights = w, ...) :
+  You are trying to do regression and your outcome only has two possible values Are you trying to do classification? If so, use a 2 level factor as your outcome column.
+> 
+> pow_resid <-
++   get_resid(terms = c("year", "month", "week", "weekday"), next_term = "l14_40380") %>%
++   mutate(Model = "Base + Part of Week")
+> 
+> l14_resid <-
++   get_resid(
++     terms = c("year", "month", "week", "weekday", "l14_40380"),
++     next_term = "holiday"
++   ) %>%
++   mutate(Model = "Base + Part of Week + 14-Day Lag")
+Warning messages:
+1: In train.default(x, y, weights = w, ...) :
+  You are trying to do regression and your outcome only has two possible values Are you trying to do classification? If so, use a 2 level factor as your outcome column.
+2: In nominalTrainWorkflow(x = x, y = y, wts = weights, info = trainInfo,  :
+  There were missing values in resampled performance measures.
+> 
+> hol_resid <- 
++   get_resid(terms = c("year", "month", "week", "weekday", "l14_40380", "holiday"), 
++             next_term = "l14_40370") %>%
++   mutate(Model = "Base + Part of Week + 14-Day Lag + Holiday")
+> 
+> mod_lev <- c("Base Model", "Base + Part of Week", 
++              "Base + Part of Week + 14-Day Lag",
++              "Base + Part of Week + 14-Day Lag + Holiday")
+> 
+> model_resid <- 
++   bind_rows(base_resid, pow_resid, l14_resid, hol_resid) %>%
++   mutate(
++     Model = factor(Model, levels = mod_lev),
++     holiday = ifelse(holiday == 1, "yes", "no"),
++     weekday = ifelse(weekday == 0, "Weekend", "Weekday")
++   )
+> 
+> resid_hists <- 
++   ggplot(model_resid, aes(x = Residual)) + 
++   geom_vline(xintercept = 0, lty = 2, col = "darkgreen") + 
++   geom_histogram(binwidth = 0.5, col = rgb(1, 1, 1, 0), fill = "blue", alpha = .5) + 
++   facet_wrap(~Model, ncol = 1) + 
++   xlab("Resampling Residual") + 
++   ylab("Count") +
++   ggtitle("(a)")
+> 
+> day_resid <-
++   base_resid %>% 
++   mutate(weekday = ifelse(weekday == 0, "Weekend", "Weekday")) %>% 
++   ggplot(aes(x = xResidual, y = Residual)) + 
++   geom_smooth(se = FALSE, method = lm, col = "black") +
++   geom_point(aes(col = weekday, shape = weekday), alpha = .5) + 
++   xlab("POW Model Residuals") +
++   ylab("Base Model \n Residuals \n") +
++   theme(
++     legend.position = c(.2, .8), 
++     legend.background = element_blank(), 
++     legend.title = element_blank()
++   ) +
++   ggtitle("(b)")
+> 
+> l14_PR_resid <- 
++   ggplot(pow_resid, aes(x = xResidual, y = Residual)) + 
++   geom_point(alpha = .5) + 
++   xlab("14-day Lag Model Residuals") +
++   ylab("Base + POW Model \n Residuals \n") +
++   ggtitle("(c)")
+> 
+> hol_PR_resid <- 
++   l14_resid %>% 
++   mutate(holiday = ifelse(holiday == 1, "yes", "no")) %>% 
++   ggplot(aes(x = xResidual, y = Residual)) + 
++   geom_smooth(se = FALSE, method = lm, col = "black") +
++   geom_point(aes(col = holiday, shape = holiday), alpha = .5) + 
++   xlab("Holiday Model Residuals") +
++   ylab("Base + POW + \n 14-day Lag Model \n Residuals") +
++   theme(
++     legend.position = c(.2, .25), 
++     legend.background = element_blank(), 
++     legend.title = element_blank()
++   ) +
++   ggtitle("(d)")
+> 
+> # https://stackoverflow.com/questions/8112208/how-can-i-obtain-an-unbalanced-grid-of-ggplots
+> # grid.arrange(resid_hists, day_resid, l14_PR_resid, hol_PR_resid,
+> #              layout_matrix = cbind(c(1, 1, 1), c(2, 3, 4)))
+> 
+> # ------------------------------------------------------------------------------
+> 
+> sessionInfo()
+R version 3.6.0 (2019-04-26)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS Mojave 10.14.5
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] caret_6.0-84     lattice_0.20-38  gridExtra_2.3    lubridate_1.7.4 
+ [5] yardstick_0.0.2  tibble_2.0.1     rsample_0.0.4    tidyr_0.8.3     
+ [9] recipes_0.1.5    purrr_0.3.1      parsnip_0.0.1    infer_0.4.0     
+[13] ggplot2_3.1.0    dplyr_0.8.0.1    dials_0.0.2      scales_1.0.0    
+[17] broom_0.5.1      tidymodels_0.0.2
+
+loaded via a namespace (and not attached):
+ [1] minqa_1.2.4         colorspace_1.4-1    class_7.3-15       
+ [4] ggridges_0.5.1      rsconnect_0.8.13    markdown_0.9       
+ [7] base64enc_0.1-3     tidytext_0.2.0      rstudioapi_0.9.0   
+[10] rstan_2.18.2        SnowballC_0.6.0     DT_0.5             
+[13] prodlim_2018.04.18  codetools_0.2-16    splines_3.6.0      
+[16] knitr_1.23          shinythemes_1.1.2   bayesplot_1.6.0    
+[19] nloptr_1.2.1        pROC_1.14.0         shiny_1.2.0        
+[22] compiler_3.6.0      backports_1.1.3     assertthat_0.2.0   
+[25] Matrix_1.2-17       lazyeval_0.2.1      cli_1.1.0          
+[28] later_0.8.0         htmltools_0.3.6     prettyunits_1.0.2  
+[31] tools_3.6.0         igraph_1.2.4        gtable_0.2.0       
+[34] glue_1.3.0          reshape2_1.4.3      Rcpp_1.0.0         
+[37] nlme_3.1-139        iterators_1.0.10    crosstalk_1.0.0    
+[40] timeDate_3043.102   gower_0.2.1         xfun_0.7           
+[43] stringr_1.4.0       ps_1.3.0            lme4_1.1-21        
+[46] mime_0.6            miniUI_0.1.1.1      gtools_3.8.1       
+[49] tidypredict_0.3.0   MASS_7.3-51.4       zoo_1.8-6          
+[52] ipred_0.9-8         rstanarm_2.18.2     colourpicker_1.0   
+[55] promises_1.0.1      parallel_3.6.0      inline_0.3.15      
+[58] shinystan_2.5.0     tidyposterior_0.0.2 loo_2.0.0          
+[61] StanHeaders_2.18.1  rpart_4.1-15        stringi_1.4.3      
+[64] tokenizers_0.2.1    dygraphs_1.1.1.6    foreach_1.4.4      
+[67] boot_1.3-22         pkgbuild_1.0.2      lava_1.6.5         
+[70] rlang_0.3.1         pkgconfig_2.0.2     matrixStats_0.54.0 
+[73] rstantools_1.5.1    htmlwidgets_1.3     processx_3.3.1     
+[76] tidyselect_0.2.5    plyr_1.8.4          magrittr_1.5       
+[79] R6_2.4.0            generics_0.0.2      pillar_1.3.1       
+[82] withr_2.1.2         xts_0.11-2          survival_2.44-1.1  
+[85] nnet_7.3-12         janeaustenr_0.1.5   crayon_1.3.4       
+[88] grid_3.6.0          data.table_1.12.2   callr_3.2.0        
+[91] ModelMetrics_1.2.2  threejs_0.3.1       digest_0.6.18      
+[94] xtable_1.8-3        httpuv_1.4.5.1      stats4_3.6.0       
+[97] munsell_0.5.0       shinyjs_1.0        
+> 
+> proc.time()
+   user  system elapsed 
+ 34.766   2.118  36.893 
