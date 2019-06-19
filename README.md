@@ -14,4 +14,6 @@ The repo currently contains:
 * `Data_Sets` directory contains all of the new data sets used in the text. 
 * Other directories contain code that reproduces the analyses in the book. Some analyses are contained in since subdirectories or files while others are split up (as is best for each case). Each analysis has a list of required R packages and enumerates the package versions that were used for the analyses contained in the text. Most analyses use visualizations and tables that are consistent with the on-line version and are interactive where possible. 
 
+(there is no code for chapter 10)
+
 For questions or comments, please [file an issue](https://github.com/topepo/FES/issues).  
