@@ -1,0 +1,570 @@
+
+R version 3.6.0 (2019-04-26) -- "Planting of a Tree"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # ------------------------------------------------------------------------------
+> # Feature Engineering and Selection: A Practical Approach for Predictive Models
+> # by Max Kuhn and Kjell Johnson
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code for Section 2.4 at
+> # https://bookdown.org/max/FES/predictive-modeling-across-sets.html
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code requires these packages: 
+> 
+> library(caret)
+Loading required package: lattice
+Loading required package: ggplot2
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
+> library(tidymodels)
+Registered S3 method overwritten by 'xts':
+  method     from
+  as.zoo.xts zoo 
+── Attaching packages ────────────────────────────────────── tidymodels 0.0.2 ──
+✔ broom     0.5.1          ✔ purrr     0.3.2     
+✔ dials     0.0.2          ✔ recipes   0.1.5     
+✔ dplyr     0.8.0.1        ✔ rsample   0.0.4     
+✔ infer     0.4.0          ✔ tibble    2.1.3     
+✔ parsnip   0.0.2.9000     ✔ yardstick 0.0.2     
+── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
+✖ purrr::discard()       masks scales::discard()
+✖ dplyr::filter()        masks stats::filter()
+✖ dplyr::lag()           masks stats::lag()
+✖ purrr::lift()          masks caret::lift()
+✖ yardstick::precision() masks caret::precision()
+✖ yardstick::recall()    masks caret::recall()
+✖ recipes::step()        masks stats::step()
+Warning messages:
+1: replacing previous import ‘ggplot2::vars’ by ‘rlang::vars’ when loading ‘bayesplot’ 
+2: replacing previous import ‘dplyr::vars’ by ‘rlang::vars’ when loading ‘tidytext’ 
+> library(utils)
+> library(pROC)
+Type 'citation("pROC")' for a citation.
+
+Attaching package: ‘pROC’
+
+The following objects are masked from ‘package:stats’:
+
+    cov, smooth, var
+
+> library(plotly)
+
+Attaching package: ‘plotly’
+
+The following object is masked from ‘package:ggplot2’:
+
+    last_plot
+
+The following object is masked from ‘package:stats’:
+
+    filter
+
+The following object is masked from ‘package:graphics’:
+
+    layout
+
+> 
+> theme_set(theme_bw())
+> 
+> # ------------------------------------------------------------------------------
+> 
+> load("../Data_Sets/Ischemic_Stroke/stroke_data.RData")
+> load("interactions.RData")
+> 
+> VC_preds <- 
++   c("CALCVol", "CALCVolProp", "MATXVol", "MATXVolProp", "LRNCVol", 
++     "LRNCVolProp", "MaxCALCArea", "MaxCALCAreaProp", "MaxDilationByArea", 
++     "MaxMATXArea", "MaxMATXAreaProp", "MaxLRNCArea", "MaxLRNCAreaProp", 
++     "MaxMaxWallThickness", "MaxRemodelingRatio", "MaxStenosisByArea", 
++     "MaxWallArea", "WallVol", "MaxStenosisByDiameter")
+> 
+> risk_preds <-
++   c("age", "sex", "SmokingHistory", "AtrialFibrillation", "CoronaryArteryDisease", 
++     "DiabetesHistory", "HypercholesterolemiaHistory", "HypertensionHistory")
+> 
+> risk_train <- 
++   stroke_train %>%
++   dplyr::select(one_of(risk_preds), Stroke)
+> 
+> image_train <- 
++   stroke_train %>%
++   dplyr::select(one_of(VC_preds), Stroke)
+> 
+> # ------------------------------------------------------------------------------
+> 
+> fiveStats <- function(...) c(twoClassSummary(...), defaultSummary(...))
+> internal_ctrl = trainControl(method = "none", classProbs = TRUE,
++                              allowParallel = FALSE)
+> lrFuncsNew <- caretFuncs  
+> lrFuncsNew$summary <- fiveStats
+> rfeCtrl <- rfeControl(functions = lrFuncsNew,
++                       method = "repeatedcv",
++                       repeats = 5,
++                       rerank = FALSE,
++                       returnResamp = "all",
++                       saveDetails = TRUE,
++                       verbose = FALSE)
+> 
+> # ------------------------------------------------------------------------------
+> # Here I'll run in parallel using doMC. For Windows, a different package can
+> # be used.
+> 
+> library(doMC)
+Loading required package: foreach
+
+Attaching package: ‘foreach’
+
+The following objects are masked from ‘package:purrr’:
+
+    accumulate, when
+
+Loading required package: iterators
+Loading required package: parallel
+> registerDoMC(cores = parallel::detectCores(logical = FALSE) - 1)
+> 
+> # ------------------------------------------------------------------------------
+> # RFE procedure using risk predictors
+> 
+> # All pair-wise interactions
+> risk_int_filtered_recipe <-
++   recipe(Stroke ~ ., data = risk_train) %>%
++   step_interact(~ all_predictors():all_predictors()) %>%
++   step_corr(all_predictors(), threshold = 0.75) %>% 
++   step_center(all_predictors()) %>%
++   step_scale(all_predictors()) %>%
++   step_zv(all_predictors())
+> 
+> set.seed(63331)
+> risk_int_filtered_rfe <- rfe(
++   risk_int_filtered_recipe,
++   data = risk_train,
++   sizes = 1:36,
++   rfeControl = rfeCtrl,
++   metric = "ROC",
++   ## train options
++   method = "glm",
++   trControl = internal_ctrl
++ )
+Warning messages:
+1: Unquoting language objects with `!!!` is deprecated as of rlang 0.4.0.
+Please use `!!` instead.
+
+  # Bad:
+  dplyr::select(data, !!!enquo(x))
+
+  # Good:
+  dplyr::select(data, !!enquo(x))    # Unquote single quosure
+  dplyr::select(data, !!!enquos(x))  # Splice list of quosures
+
+This warning is displayed once per session. 
+2: For the training set, the recipe generated fewer predictors than the 36 expected in `sizes` and the number of subsets will be truncated to be <= 18. 
+3: glm.fit: fitted probabilities numerically 0 or 1 occurred 
+> 
+> # Main effects
+> risk_main_filtered_recipe <-
++   recipe(Stroke ~ ., data = risk_train) %>%
++   step_corr(all_predictors(), threshold = 0.75) %>% 
++   step_center(all_predictors()) %>%
++   step_scale(all_predictors()) %>%
++   step_zv(all_predictors())
+> 
+> set.seed(63331)
+> risk_main_filtered_rfe <- rfe(
++   risk_main_filtered_recipe,
++   data = risk_train,
++   sizes = 1:8,
++   rfeControl = rfeCtrl,
++   metric = "ROC",
++   ## train options
++   method = "glm",
++   trControl = internal_ctrl
++ )
+> 
+> # ------------------------------------------------------------------------------
+> # RFE procedure using imaging predictors
+> 
+> img_int_filtered_recipe <-
++   recipe(Stroke ~ ., data = image_train) %>%
++   step_interact(int_form)  %>%
++   step_corr(all_predictors(), threshold = 0.75) %>%
++   step_center(all_predictors()) %>%
++   step_scale(all_predictors()) %>%
++   step_YeoJohnson(all_predictors()) %>%
++   step_zv(all_predictors())
+> 
+> set.seed(63331)
+> img_int_filtered_rfe <- rfe(
++   img_int_filtered_recipe,
++   data = image_train,
++   sizes = 1:35,
++   rfeControl = rfeCtrl,
++   metric = "ROC",
++   ## train options
++   method = "glm",
++   trControl = internal_ctrl
++ )
+Warning message:
+For the training set, the recipe generated fewer predictors than the 35 expected in `sizes` and the number of subsets will be truncated to be <= 14. 
+> 
+> img_main_filtered_recipe <-
++   recipe(Stroke ~ ., data = image_train)  %>%
++   step_corr(all_predictors(), threshold = 0.75) %>%
++   step_center(all_predictors()) %>%
++   step_scale(all_predictors()) %>%
++   step_YeoJohnson(all_predictors()) %>%
++   step_zv(all_predictors())
+> 
+> set.seed(63331)
+> img_main_filtered_rfe <- rfe(
++   img_main_filtered_recipe,
++   data = image_train,
++   sizes = 1:19,
++   rfeControl = rfeCtrl,
++   metric = "ROC",
++   ## train options
++   method = "glm",
++   trControl = internal_ctrl
++ )
+Warning message:
+For the training set, the recipe generated fewer predictors than the 19 expected in `sizes` and the number of subsets will be truncated to be <= 12. 
+> 
+> # ------------------------------------------------------------------------------
+> 
+> both_int_filtered_recipe <-
++   recipe(Stroke ~ ., data = stroke_train) %>%
++   step_interact(int_form)  %>%
++   step_corr(all_predictors(), threshold = 0.75) %>%
++   step_center(all_predictors()) %>%
++   step_scale(all_predictors()) %>%
++   step_YeoJohnson(all_predictors()) %>%
++   step_zv(all_predictors())
+> 
+> set.seed(63331)
+> both_int_filtered_rfe <- rfe(
++   both_int_filtered_recipe,
++   data = stroke_train,
++   sizes = 1:44,
++   rfeControl = rfeCtrl,
++   metric = "ROC",
++   ## train options
++   method = "glm",
++   trControl = internal_ctrl
++ )
+Warning message:
+For the training set, the recipe generated fewer predictors than the 44 expected in `sizes` and the number of subsets will be truncated to be <= 24. 
+> 
+> both_main_filtered_recipe <-
++   recipe(Stroke ~ ., data = stroke_train)  %>%
++   step_corr(all_predictors(), threshold = 0.75) %>%
++   step_center(all_predictors()) %>%
++   step_scale(all_predictors()) %>%
++   step_YeoJohnson(all_predictors()) %>%
++   step_zv(all_predictors())
+> 
+> set.seed(63331)
+> both_main_filtered_rfe <- rfe(
++   both_main_filtered_recipe,
++   data = stroke_train,
++   sizes = 1:28,
++   rfeControl = rfeCtrl,
++   metric = "ROC",
++   ## train options
++   method = "glm",
++   trControl = internal_ctrl
++ )
+Warning message:
+For the training set, the recipe generated fewer predictors than the 28 expected in `sizes` and the number of subsets will be truncated to be <= 21. 
+> 
+> # ------------------------------------------------------------------------------
+> 
+> risk_int_recipe <-
++   recipe(Stroke ~ ., data = risk_train) %>%
++   step_interact(~ all_predictors():all_predictors()) %>%
++   step_center(all_predictors()) %>%
++   step_scale(all_predictors()) %>%
++   step_zv(all_predictors())
+> 
+> set.seed(63331)
+> risk_int_rfe <- rfe(
++   risk_int_recipe,
++   data = risk_train,
++   sizes = 1:36,
++   rfeControl = rfeCtrl,
++   metric = "ROC",
++   ## train options
++   method = "glm",
++   trControl = internal_ctrl
++ )
+> 
+> risk_main_recipe <-
++   recipe(Stroke ~ ., data = risk_train) %>%
++   step_center(all_predictors()) %>%
++   step_scale(all_predictors()) %>%
++   step_zv(all_predictors())
+> 
+> set.seed(63331)
+> risk_main_rfe <- rfe(
++   risk_main_recipe,
++   data = risk_train,
++   sizes = 1:8,
++   rfeControl = rfeCtrl,
++   metric = "ROC",
++   ## train options
++   method = "glm",
++   trControl = internal_ctrl
++ )
+> 
+> # ------------------------------------------------------------------------------
+> 
+> img_int_recipe <-
++   recipe(Stroke ~ ., data = image_train) %>%
++   step_interact(int_form)  %>%
++   step_center(all_predictors()) %>%
++   step_scale(all_predictors()) %>%
++   step_YeoJohnson(all_predictors()) %>%
++   step_zv(all_predictors())
+> 
+> set.seed(63331)
+> img_int_rfe <- rfe(
++   img_int_recipe,
++   data = image_train,
++   sizes = 1:35,
++   rfeControl = rfeCtrl,
++   metric = "ROC",
++   ## train options
++   method = "glm",
++   trControl = internal_ctrl
++ )
+> 
+> img_main_recipe <-
++   recipe(Stroke ~ ., data = image_train)  %>%
++   step_center(all_predictors()) %>%
++   step_scale(all_predictors()) %>%
++   step_YeoJohnson(all_predictors()) %>%
++   step_zv(all_predictors())
+> 
+> set.seed(63331)
+> img_main_rfe <- rfe(
++   img_main_recipe,
++   data = image_train,
++   sizes = 1:19,
++   rfeControl = rfeCtrl,
++   metric = "ROC",
++   ## train options
++   method = "glm",
++   trControl = internal_ctrl
++ )
+> 
+> # ------------------------------------------------------------------------------
+> 
+> both_int_recipe <-
++   recipe(Stroke ~ ., data = stroke_train) %>%
++   step_interact(int_form)  %>%
++   step_center(all_predictors()) %>%
++   step_scale(all_predictors()) %>%
++   step_YeoJohnson(all_predictors()) %>%
++   step_zv(all_predictors())
+> 
+> set.seed(63331)
+> both_int_rfe <- rfe(
++   both_int_recipe,
++   data = stroke_train,
++   sizes = 1:44,
++   rfeControl = rfeCtrl,
++   metric = "ROC",
++   ## train options
++   method = "glm",
++   trControl = internal_ctrl
++ )
+> 
+> both_main_recipe <-
++   recipe(Stroke ~ ., data = stroke_train)  %>%
++   step_center(all_predictors()) %>%
++   step_scale(all_predictors()) %>%
++   step_YeoJohnson(all_predictors()) %>%
++   step_zv(all_predictors())
+> 
+> set.seed(63331)
+> both_main_rfe <- rfe(
++   both_main_recipe,
++   data = stroke_train,
++   sizes = 1:28,
++   rfeControl = rfeCtrl,
++   metric = "ROC",
++   ## train options
++   method = "glm",
++   trControl = internal_ctrl
++ )
+> 
+> # ------------------------------------------------------------------------------
+> 
+> format_data <- function(x, lab, int = FALSE) {
++   dat <- 
++     x %>% 
++     pluck("results") %>% 
++     mutate(Predictors = !!lab) %>% 
++     dplyr::select(ROC, Variables, Predictors, Variables, Num_Resamples) %>% 
++     mutate(Model = "Main Effects")
++   if (int)
++     dat$Model <- "Interactions"
++   dat
++   
++ }
+> 
+> filtered_dat <- 
++   format_data(risk_main_filtered_rfe, lab = "Risk Predictors") %>% 
++   bind_rows(
++     format_data(risk_int_filtered_rfe, lab = "Risk Predictors", TRUE),
++     format_data(img_main_filtered_rfe, lab = "Imaging Predictors"),
++     format_data(img_int_filtered_rfe, lab = "Imaging Predictors", TRUE),
++     format_data(both_main_filtered_rfe, lab = "All Predictors"),
++     format_data(both_int_filtered_rfe, lab = "All Predictors", TRUE)
++   ) %>% 
++   mutate(
++     Predictors = factor(
++       Predictors, 
++       levels = c("Risk Predictors", "Imaging Predictors", "All Predictors")
++     ),
++     Model = factor(Model, levels = c("Main Effects", "Interactions")),
++     Filtering = "Correlation Filter"
++   )
+> 
+> unfiltered_dat <- 
++   format_data(risk_main_rfe, lab = "Risk Predictors") %>% 
++   bind_rows(
++     format_data(risk_int_rfe, lab = "Risk Predictors", TRUE),
++     format_data(img_main_rfe, lab = "Imaging Predictors"),
++     format_data(img_int_rfe, lab = "Imaging Predictors", TRUE),
++     format_data(both_main_rfe, lab = "All Predictors"),
++     format_data(both_int_rfe, lab = "All Predictors", TRUE)
++   ) %>% 
++   mutate(
++     Predictors = factor(
++       Predictors, 
++       levels = c("Risk Predictors", "Imaging Predictors", "All Predictors")
++     ),
++     Model = factor(Model, levels = c("Main Effects", "Interactions")),
++     Filtering = "No Filter"
++   )
+> 
+> rfe_data <- 
++   bind_rows(filtered_dat, unfiltered_dat) %>% 
++   mutate(
++     Filtering = factor(Filtering, levels = c("No Filter", "Correlation Filter"))
++   )
+> 
+> # ------------------------------------------------------------------------------
+> 
+> # https://bookdown.org/max/FES/predictive-modeling-across-sets.html#fig:stroke-rfe-res
+> ggplot(rfe_data, aes(x = Variables, y = ROC, col = Model)) +
++   geom_point(size = 0.75) + 
++   geom_line() + 
++   facet_grid(Filtering ~ Predictors) + 
++   scale_color_manual(values = c("#6A3D9A", "#CAB2D6"))
+> 
+> # ------------------------------------------------------------------------------
+> 
+> # https://bookdown.org/max/FES/predictive-modeling-across-sets.html#tab:stroke-rfe-tab
+> rfe_tab <-
++   img_main_filtered_rfe %>% 
++   pluck("variables") %>% 
++   filter(Variables == img_main_filtered_rfe$optsize) %>% 
++   group_by(var) %>% 
++   count() %>% 
++   arrange(desc(n)) %>% 
++   mutate(final = ifelse(var %in% img_main_filtered_rfe$optVariables, "Yes", "No")) %>% 
++   ungroup()
+> 
+> # ------------------------------------------------------------------------------
+> 
+> save(risk_main_rfe, risk_int_rfe, img_main_rfe, img_int_rfe, both_main_rfe,
++      both_main_rfe, file = "stroke_rfe.RData")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> sessionInfo()
+R version 3.6.0 (2019-04-26)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS High Sierra 10.13.6
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] parallel  stats     graphics  grDevices utils     datasets  methods  
+[8] base     
+
+other attached packages:
+ [1] doMC_1.3.5         iterators_1.0.10   foreach_1.4.4      plotly_4.9.0      
+ [5] pROC_1.14.0        yardstick_0.0.2    tibble_2.1.3       rsample_0.0.4     
+ [9] tidyr_0.8.3        recipes_0.1.5      purrr_0.3.2        parsnip_0.0.2.9000
+[13] infer_0.4.0        dplyr_0.8.0.1      dials_0.0.2        scales_1.0.0      
+[17] broom_0.5.1        tidymodels_0.0.2   caret_6.0-84       ggplot2_3.1.1     
+[21] lattice_0.20-38   
+
+loaded via a namespace (and not attached):
+  [1] minqa_1.2.4         colorspace_1.4-1    class_7.3-15       
+  [4] ggridges_0.5.1      rsconnect_0.8.13    markdown_0.9       
+  [7] base64enc_0.1-3     tidytext_0.2.0      rstudioapi_0.10    
+ [10] rstan_2.18.2        SnowballC_0.6.0     DT_0.5             
+ [13] prodlim_2018.04.18  lubridate_1.7.4     codetools_0.2-16   
+ [16] splines_3.6.0       knitr_1.23          shinythemes_1.1.2  
+ [19] bayesplot_1.6.0     jsonlite_1.6        nloptr_1.2.1       
+ [22] shiny_1.2.0         httr_1.4.0          compiler_3.6.0     
+ [25] backports_1.1.4     assertthat_0.2.1    Matrix_1.2-17      
+ [28] lazyeval_0.2.2      cli_1.1.0           later_0.8.0        
+ [31] htmltools_0.3.6     prettyunits_1.0.2   tools_3.6.0        
+ [34] igraph_1.2.4        gtable_0.3.0        glue_1.3.1         
+ [37] reshape2_1.4.3      Rcpp_1.0.1          nlme_3.1-139       
+ [40] crosstalk_1.0.0     timeDate_3043.102   gower_0.2.0        
+ [43] xfun_0.7            stringr_1.4.0       ps_1.3.0           
+ [46] lme4_1.1-20         mime_0.6            miniUI_0.1.1.1     
+ [49] gtools_3.8.1        tidypredict_0.3.0   MASS_7.3-51.4      
+ [52] zoo_1.8-5           ipred_0.9-8         rstanarm_2.18.2    
+ [55] colourpicker_1.0    promises_1.0.1      inline_0.3.15      
+ [58] shinystan_2.5.0     tidyposterior_0.0.2 gridExtra_2.3      
+ [61] loo_2.0.0           StanHeaders_2.18.1  rpart_4.1-15       
+ [64] stringi_1.4.3       tokenizers_0.2.1    dygraphs_1.1.1.6   
+ [67] e1071_1.7-2         pkgbuild_1.0.3      lava_1.6.5         
+ [70] rlang_0.3.99.9003   pkgconfig_2.0.2     matrixStats_0.54.0 
+ [73] labeling_0.3        rstantools_1.5.1    htmlwidgets_1.3    
+ [76] processx_3.3.1      tidyselect_0.2.5    plyr_1.8.4         
+ [79] magrittr_1.5        R6_2.4.0            generics_0.0.2     
+ [82] pillar_1.4.1        withr_2.1.2         xts_0.11-2         
+ [85] survival_2.44-1.1   nnet_7.3-12         janeaustenr_0.1.5  
+ [88] crayon_1.3.4        grid_3.6.0          data.table_1.12.2  
+ [91] callr_3.2.0         ModelMetrics_1.2.2  threejs_0.3.1      
+ [94] digest_0.6.19       xtable_1.8-3        httpuv_1.4.5.1     
+ [97] stats4_3.6.0        munsell_0.5.0       viridisLite_0.3.0  
+[100] shinyjs_1.0        
+> 
+> 
+> proc.time()
+    user   system  elapsed 
+5397.332   61.629  667.078 

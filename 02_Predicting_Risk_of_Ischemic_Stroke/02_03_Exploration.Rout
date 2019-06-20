@@ -1,0 +1,356 @@
+
+R version 3.6.0 (2019-04-26) -- "Planting of a Tree"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # ------------------------------------------------------------------------------
+> # Feature Engineering and Selection: A Practical Approach for Predictive Models
+> # by Max Kuhn and Kjell Johnson
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code for Section 2.4 at
+> # https://bookdown.org/max/FES/stroke-tour.html#stroke-exploration
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code requires these packages: 
+> 
+> library(caret)
+Loading required package: lattice
+Loading required package: ggplot2
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
+> library(tidymodels)
+Registered S3 method overwritten by 'xts':
+  method     from
+  as.zoo.xts zoo 
+── Attaching packages ────────────────────────────────────── tidymodels 0.0.2 ──
+✔ broom     0.5.1       ✔ purrr     0.3.1  
+✔ dials     0.0.2       ✔ recipes   0.1.5  
+✔ dplyr     0.8.0.1     ✔ rsample   0.0.4  
+✔ infer     0.4.0       ✔ tibble    2.0.1  
+✔ parsnip   0.0.1       ✔ yardstick 0.0.2  
+── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
+✖ purrr::discard()       masks scales::discard()
+✖ dplyr::filter()        masks stats::filter()
+✖ dplyr::lag()           masks stats::lag()
+✖ purrr::lift()          masks caret::lift()
+✖ yardstick::precision() masks caret::precision()
+✖ yardstick::recall()    masks caret::recall()
+✖ recipes::step()        masks stats::step()
+> library(utils)
+> library(pROC)
+Type 'citation("pROC")' for a citation.
+
+Attaching package: ‘pROC’
+
+The following objects are masked from ‘package:stats’:
+
+    cov, smooth, var
+
+> library(plotly)
+
+Attaching package: ‘plotly’
+
+The following object is masked from ‘package:ggplot2’:
+
+    last_plot
+
+The following object is masked from ‘package:stats’:
+
+    filter
+
+The following object is masked from ‘package:graphics’:
+
+    layout
+
+> 
+> theme_set(theme_bw())
+> 
+> # ------------------------------------------------------------------------------
+> 
+> load("../Data_Sets/Ischemic_Stroke/stroke_data.RData")
+> 
+> # ------------------------------------------------------------------------------
+> # Code to compare 2-way interaction models to their main effects model ---------
+> 
+> # `a` and `b` are two models from `train()`
+> compare_models_1way <- function(a, b, metric = a$metric[1], ...) {
++   mods <- list(a, b)
++   rs <- resamples(mods)
++   diffs <- diff(rs, metric = metric[1], ...)
++   diffs$statistics[[1]][[1]]
++ }
+> 
+> # `risk_preds` is contained in the original data file and has the predictor 
+> # names for the risk related variables
+> 
+> # ------------------------------------------------------------------------------
+> # Create a "null model" with no predictors to get baseline performance ---------
+> 
+> null_mat <- data.frame(intercept = rep(1, nrow(stroke_train)))
+> 
+> ctrl <- 
++   trainControl(method = "repeatedcv", repeats = 5,
++                classProbs = TRUE, 
++                summaryFunction = twoClassSummary)
+> 
+> set.seed(63331)
+> null_mod <- train(x = null_mat, 
++                   y = stroke_train$Stroke, 
++                   preProc = "YeoJohnson",
++                   method = "glm", 
++                   metric = "ROC", 
++                   trControl = ctrl)
+There were 50 or more warnings (use warnings() to see the first 50)
+> 
+> # ------------------------------------------------------------------------------
+> # Compare the models with single predictors to the risk model. These data make
+> # https://bookdown.org/max/FES/stroke-tour.html#tab:stroke-strokeRiskAssociations
+> 
+> # `VC_preds` and `risk_preds` contain the predictor names for different sets.
+> 
+> one_predictor_res <- 
++   data.frame(Predictor = c(VC_preds, risk_preds), 
++              Improvement = NA,
++              Pvalue = NA,
++              ROC = NA,
++              stringsAsFactors = FALSE)
+> 
+> 
+> for (i in 1:nrow(one_predictor_res)) {
++   set.seed(63331)
++   var_mod <- train(Stroke ~ ., 
++                    data = stroke_train[, c("Stroke", one_predictor_res$Predictor[i])], 
++                    method = "glm", 
++                    metric = "ROC",
++                    trControl = ctrl)  
++   tmp_diff <- compare_models_1way(var_mod, null_mod, alternative = "greater")
++   one_predictor_res$ROC[i] <- getTrainPerf(var_mod)[1, "TrainROC"]
++   one_predictor_res$Improvement[i] <- tmp_diff$estimate
++   one_predictor_res$Pvalue[i] <- tmp_diff$p.value
++ }
+> 
+> # ------------------------------------------------------------------------------
+> # Data in table 2.3
+> # https://bookdown.org/max/FES/stroke-tour.html#tab:stroke-strokeRiskAssociations
+> 
+> one_predictor_res %>% 
++   dplyr::filter(Predictor %in% risk_preds) %>% 
++   arrange(Pvalue)
+                    Predictor Improvement       Pvalue      ROC
+1       CoronaryArteryDisease    0.079000 0.0002957741 0.579000
+2             DiabetesHistory    0.066500 0.0003019908 0.566500
+3         HypertensionHistory    0.065000 0.0004269919 0.565000
+4                         age    0.083375 0.0010729715 0.583375
+5          AtrialFibrillation    0.044000 0.0013131334 0.544000
+6              SmokingHistory   -0.009500 0.6520765973 0.490500
+7                         sex   -0.034500 0.9287682162 0.465500
+8 HypercholesterolemiaHistory   -0.101500 0.9999999044 0.398500
+> 
+> # ------------------------------------------------------------------------------
+> # Figure 2.4
+> # https://bookdown.org/max/FES/stroke-tour.html#fig:stroke-vascuCAPAssocations
+> 
+> vc_pred <- 
++   recipe(Stroke ~ ., data = stroke_train %>% dplyr::select(Stroke, !!!VC_preds)) %>% 
++   step_YeoJohnson(all_predictors()) %>% 
++   prep(stroke_train %>% dplyr::select(Stroke, !!!VC_preds)) %>% 
++   juice() %>% 
++   gather(Predictor, value, -Stroke)
+> 
+> # get_max value per predictor
+> 
+> pred_max <- 
++   vc_pred %>% 
++   group_by(Predictor) %>% 
++   summarize(max_val = max(value)) %>% 
++   inner_join(one_predictor_res %>% dplyr::select(Pvalue, Predictor)) %>% 
++   mutate(
++     x = 1.5, 
++     value = 1.25 * max_val,
++     label = paste0("p-value: ", format.pval(Pvalue, digits = 2, sci = FALSE, eps = .0001))
++   )
+Joining, by = "Predictor"
+> 
+> new_order <- pred_max$Predictor[order(pred_max$Pvalue)]
+> 
+> vc_pred <- 
++   vc_pred %>% 
++   mutate(Predictor = factor(Predictor, levels = new_order))
+> 
+> pred_max <- 
++   pred_max %>% 
++   mutate(Predictor = factor(Predictor, levels = new_order))
+> 
+> fig_2_4 <-
++   ggplot(vc_pred, aes(x = Stroke, y = value)) + 
++   geom_boxplot() + 
++   geom_point(alpha = 0.3, cex = .5) + 
++   geom_text(data = pred_max, aes(x = x, label = label), size = 3) + 
++   facet_wrap(~Predictor, scales = "free_y") + 
++   ylab("")
+> 
+> # ------------------------------------------------------------------------------
+> # Figure 2.5
+> # https://bookdown.org/max/FES/stroke-tour.html#fig:stroke-maxRemodelingRatioROC
+> 
+> fig_2_5 <- 
++   roc_curve(stroke_train, Stroke, MaxRemodelingRatio) %>% 
++   ggplot(aes(x = 1 - specificity, y = sensitivity)) + 
++   geom_abline(alpha = .5, lty = 2) +
++   geom_path()
+> 
+> # ------------------------------------------------------------------------------
+> # Interaction exploration
+> 
+> pairs <- 
++   combn(VC_preds, 2) %>% 
++   t() %>% 
++   as.data.frame(stringsAsFactors = FALSE) %>% 
++   mutate(
++     Improvement = NA,
++     Pvalue = NA,
++     ROC = NA
++   )
+> 
+> for (i in 1:nrow(pairs)) {
++   tmp_vars <- c("Stroke", pairs$V1[i], pairs$V2[i])
++   set.seed(63331)
++   main_eff <- train(Stroke ~ ., 
++                     data = stroke_train[, tmp_vars], 
++                     preProc = c("center", "scale", "YeoJohnson"),
++                     method = "glm", 
++                     metric = "ROC",
++                     trControl = ctrl)
++   set.seed(63331)
++   main_int <- train(Stroke ~ (.)^2, 
++                     data = stroke_train[, tmp_vars], 
++                     preProc = c("center", "scale", "YeoJohnson"), 
++                     method = "glm", 
++                     metric = "ROC", 
++                     trControl = ctrl)  
++   tmp_diff <- compare_models_1way(main_int, main_eff, alternative = "greater")
++   pairs$ROC[i] <- getTrainPerf(main_eff)[1, "TrainROC"]
++   pairs$Improvement[i] <- tmp_diff$estimate
++   pairs$Pvalue[i] <- tmp_diff$p.value
++ }
+There were 50 or more warnings (use warnings() to see the first 50)
+> 
+> retained_pairs <- 
++   pairs %>% 
++   dplyr::filter(ROC > 0.5  & Pvalue <= 0.2)
+> 
+> # ------------------------------------------------------------------------------
+> # Figure 2.6
+> # https://bookdown.org/max/FES/stroke-tour.html#fig:stroke-interactionScreening
+> 
+> vol_plot <- 
++   pairs %>% 
++   dplyr::filter(ROC > 0.5) %>%
++   mutate(Term = paste(V1, "by", V2, "\nROC:", round(ROC, 2))) %>%
++   ggplot(aes(x = Improvement, y = -log10(Pvalue))) + 
++   xlab("Improvement") +
++   geom_point(alpha = .2, aes(size = ROC, text = Term))
+Warning: Ignoring unknown aesthetics: text
+> 
+> vol_plot <- ggplotly(vol_plot, tooltip = "Term")
+> # vol_plot
+> 
+> # ------------------------------------------------------------------------------
+> 
+> ## Create interaction formula
+> int_form <- 
++   pairs %>% 
++   dplyr::filter(ROC > 0.5  & Pvalue <= 0.2 & Improvement > 0) %>% 
++   mutate(form  = paste0(V1, ":", V2)) %>% 
++   pull(form) %>% 
++   paste(collapse = "+")
+> int_form <- paste("~", int_form)
+> int_form <- as.formula(int_form)
+> 
+> save(int_form, file = "interactions.RData")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> sessionInfo()
+R version 3.6.0 (2019-04-26)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS Mojave 10.14.5
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] plotly_4.9.0     pROC_1.14.0      yardstick_0.0.2  tibble_2.0.1    
+ [5] rsample_0.0.4    tidyr_0.8.3      recipes_0.1.5    purrr_0.3.1     
+ [9] parsnip_0.0.1    infer_0.4.0      dplyr_0.8.0.1    dials_0.0.2     
+[13] scales_1.0.0     broom_0.5.1      tidymodels_0.0.2 caret_6.0-84    
+[17] ggplot2_3.1.0    lattice_0.20-38 
+
+loaded via a namespace (and not attached):
+  [1] minqa_1.2.4         colorspace_1.4-1    class_7.3-15       
+  [4] ggridges_0.5.1      rsconnect_0.8.13    markdown_0.9       
+  [7] base64enc_0.1-3     tidytext_0.2.0      rstudioapi_0.9.0   
+ [10] rstan_2.18.2        SnowballC_0.6.0     DT_0.5             
+ [13] prodlim_2018.04.18  lubridate_1.7.4     codetools_0.2-16   
+ [16] splines_3.6.0       knitr_1.23          shinythemes_1.1.2  
+ [19] bayesplot_1.6.0     jsonlite_1.6        nloptr_1.2.1       
+ [22] shiny_1.2.0         httr_1.4.0          compiler_3.6.0     
+ [25] backports_1.1.3     assertthat_0.2.0    Matrix_1.2-17      
+ [28] lazyeval_0.2.1      cli_1.1.0           later_0.8.0        
+ [31] htmltools_0.3.6     prettyunits_1.0.2   tools_3.6.0        
+ [34] igraph_1.2.4        gtable_0.2.0        glue_1.3.0         
+ [37] reshape2_1.4.3      Rcpp_1.0.0          nlme_3.1-139       
+ [40] iterators_1.0.10    crosstalk_1.0.0     timeDate_3043.102  
+ [43] gower_0.2.1         xfun_0.7            stringr_1.4.0      
+ [46] ps_1.3.0            lme4_1.1-21         mime_0.6           
+ [49] miniUI_0.1.1.1      gtools_3.8.1        tidypredict_0.3.0  
+ [52] MASS_7.3-51.4       zoo_1.8-6           ipred_0.9-8        
+ [55] rstanarm_2.18.2     colourpicker_1.0    promises_1.0.1     
+ [58] parallel_3.6.0      inline_0.3.15       shinystan_2.5.0    
+ [61] tidyposterior_0.0.2 gridExtra_2.3       loo_2.0.0          
+ [64] StanHeaders_2.18.1  rpart_4.1-15        stringi_1.4.3      
+ [67] tokenizers_0.2.1    dygraphs_1.1.1.6    foreach_1.4.4      
+ [70] boot_1.3-22         pkgbuild_1.0.2      lava_1.6.5         
+ [73] rlang_0.3.1         pkgconfig_2.0.2     matrixStats_0.54.0 
+ [76] labeling_0.3        rstantools_1.5.1    htmlwidgets_1.3    
+ [79] processx_3.3.1      tidyselect_0.2.5    plyr_1.8.4         
+ [82] magrittr_1.5        R6_2.4.0            generics_0.0.2     
+ [85] pillar_1.3.1        withr_2.1.2         xts_0.11-2         
+ [88] survival_2.44-1.1   nnet_7.3-12         janeaustenr_0.1.5  
+ [91] crayon_1.3.4        grid_3.6.0          data.table_1.12.2  
+ [94] callr_3.2.0         ModelMetrics_1.2.2  threejs_0.3.1      
+ [97] digest_0.6.18       xtable_1.8-3        httpuv_1.4.5.1     
+[100] stats4_3.6.0        munsell_0.5.0       viridisLite_0.3.0  
+[103] shinyjs_1.0        
+> 
+> 
+> proc.time()
+    user   system  elapsed 
+1178.337   19.346  371.274 
