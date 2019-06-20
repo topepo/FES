@@ -1,0 +1,283 @@
+
+R version 3.6.0 (2019-04-26) -- "Planting of a Tree"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # ------------------------------------------------------------------------------
+> # Feature Engineering and Selection: A Practical Approach for Predictive Models
+> # by Max Kuhn and Kjell Johnson
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code for Section 7.5.3 at
+> # https://bookdown.org/max/FES/detecting-interaction-effects.html#approaches-when-complete-enumeration-is-practically-impossible
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code requires these packages: 
+> 
+> library(caret)
+Loading required package: lattice
+Loading required package: ggplot2
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
+> library(glmnet)
+Loading required package: Matrix
+Loading required package: foreach
+Loaded glmnet 2.0-16
+
+> library(tidymodels)
+Registered S3 method overwritten by 'xts':
+  method     from
+  as.zoo.xts zoo 
+── Attaching packages ────────────────────────────────────── tidymodels 0.0.2 ──
+✔ broom     0.5.1          ✔ purrr     0.3.2     
+✔ dials     0.0.2          ✔ recipes   0.1.5     
+✔ dplyr     0.8.0.1        ✔ rsample   0.0.4     
+✔ infer     0.4.0          ✔ tibble    2.1.3     
+✔ parsnip   0.0.2.9000     ✔ yardstick 0.0.2     
+── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
+✖ purrr::accumulate()    masks foreach::accumulate()
+✖ purrr::discard()       masks scales::discard()
+✖ dplyr::filter()        masks stats::filter()
+✖ dplyr::lag()           masks stats::lag()
+✖ purrr::lift()          masks caret::lift()
+✖ yardstick::precision() masks caret::precision()
+✖ yardstick::recall()    masks caret::recall()
+✖ recipes::step()        masks stats::step()
+✖ purrr::when()          masks foreach::when()
+Warning messages:
+1: replacing previous import ‘ggplot2::vars’ by ‘rlang::vars’ when loading ‘bayesplot’ 
+2: replacing previous import ‘dplyr::vars’ by ‘rlang::vars’ when loading ‘tidytext’ 
+> library(AmesHousing)
+> 
+> # ------------------------------------------------------------------------------
+> 
+> ames <- make_ames()
+> 
+> set.seed(955)
+> ames_split <- initial_split(ames)
+> ames_train <- training(ames_split)
+> 
+> set.seed(24873)
+> ames_folds <- vfold_cv(ames_train)
+> 
+> ames_ind <- rsample2caret(ames_folds)
+> 
+> # ------------------------------------------------------------------------------
+> 
+> main_rec <-
++   recipe(Sale_Price ~ Bldg_Type + Neighborhood + Year_Built +
++            Gr_Liv_Area + Full_Bath + Year_Sold + Lot_Area +
++            Central_Air + Longitude + Latitude + MS_SubClass +
++            Alley + Lot_Frontage + Pool_Area + Garage_Finish + 
++            Foundation + Land_Contour + Roof_Style,
++          data = ames_train) %>%
++   step_log(Sale_Price, base = 10) %>%
++   step_BoxCox(Lot_Area, Gr_Liv_Area, Lot_Frontage) %>%
++   step_other(Neighborhood, threshold = 0.05) %>% 
++   step_dummy(all_nominal()) %>%
++   step_zv(all_predictors()) %>%
++   step_center(all_predictors()) %>%
++   step_scale(all_predictors()) %>%
++   step_bs(Longitude, Latitude, options = list(df = 5))
+> 
+> # ------------------------------------------------------------------------------
+> 
+> load("ames_h_stats.RData")
+> 
+> int_vars <- 
++   h_stats %>% 
++   dplyr::filter(Estimator == "Bootstrap" & H > 0.001) %>% 
++   pull(Predictor)
+> 
+> interactions <- t(combn(as.character(int_vars), 2))
+> colnames(interactions) <- c("var1", "var2")
+> 
+> interactions <- 
++   interactions %>% 
++   as_tibble() %>% 
++   mutate(
++     term = 
++       paste0(
++         "starts_with('",
++         var1,
++         "'):starts_with('",
++         var2,
++         "')"
++       )
++   ) %>% 
++   pull(term) %>% 
++   paste(collapse = "+")
+> 
+> interactions <- paste("~", interactions)
+> interactions <- as.formula(interactions)
+> 
+> int_rec <-
++   recipe(Sale_Price ~ Bldg_Type + Neighborhood + Year_Built +
++            Gr_Liv_Area + Full_Bath + Year_Sold + Lot_Area +
++            Central_Air + Longitude + Latitude + MS_SubClass +
++            Alley + Lot_Frontage + Pool_Area + Garage_Finish + 
++            Foundation + Land_Contour + Roof_Style,
++          data = ames_train) %>%
++   step_log(Sale_Price, base = 10) %>%
++   step_BoxCox(Lot_Area, Gr_Liv_Area, Lot_Frontage) %>%
++   step_other(Neighborhood, threshold = 0.05) %>% 
++   step_dummy(all_nominal()) %>%
++   step_interact(interactions) %>% 
++   step_zv(all_predictors()) %>%
++   step_center(all_predictors()) %>%
++   step_scale(all_predictors()) %>%
++   step_bs(Longitude, Latitude, options = list(df = 5))
+> 
+> # ------------------------------------------------------------------------------
+> 
+> ctrl <- 
++   trainControl(
++     method = "cv",
++     index = ames_ind$index,
++     indexOut = ames_ind$indexOut
++   )
+> 
+> glmn_grid <- expand.grid(alpha = seq(.2, 1, by = .2), lambda = 10^seq(-4, -1, by = 0.1))
+> 
+> main_glmn_h <- 
++   train(main_rec,
++         data = ames_train, 
++         method = "glmnet",
++         tuneGrid = glmn_grid,
++         trControl = ctrl
++   )
+There were 40 warnings (use warnings() to see them)
+> 
+> int_glmn_h <- 
++   train(int_rec,
++         data = ames_train, 
++         method = "glmnet",
++         tuneGrid = glmn_grid,
++         trControl = ctrl
++         )
+There were 41 warnings (use warnings() to see them)
+> 
+> p <- 
++   ggplot(int_glmn_h) + 
++   scale_x_log10() + 
++   theme_bw() + 
++   theme(legend.position = "top")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> main_info_h <- 
++   list(
++     all = 
++       main_rec %>% 
++       prep(ames_train) %>% 
++       juice(all_predictors()) %>% 
++       ncol(),
++     main = length(predictors(main_glmn_h)),
++     perf = getTrainPerf(main_glmn_h)
++   )
+> 
+> int_info_h <- 
++   list(
++     all = 
++       int_rec %>% 
++       prep(ames_train) %>% 
++       juice(all_predictors()) %>% 
++       ncol(),
++     main = sum(!grepl("_x_", predictors(int_glmn_h))),
++     int = sum(grepl("_x_", predictors(int_glmn_h))),
++     perf = getTrainPerf(int_glmn_h)
++   )
+> 
+> save(main_info_h, int_info_h, int_glmn_h, file = "ames_glmnet_h.RData")
+> 
+> int_glmn_h$bestTune
+   alpha lambda
+94   0.8  1e-04
+> int_info_h$main
+[1] 48
+> int_info_h$int
+[1] 68
+> 
+> # ------------------------------------------------------------------------------
+> 
+> sessionInfo()
+R version 3.6.0 (2019-04-26)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS High Sierra 10.13.6
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] AmesHousing_0.0.3  yardstick_0.0.2    tibble_2.1.3       rsample_0.0.4     
+ [5] tidyr_0.8.3        recipes_0.1.5      purrr_0.3.2        parsnip_0.0.2.9000
+ [9] infer_0.4.0        dplyr_0.8.0.1      dials_0.0.2        scales_1.0.0      
+[13] broom_0.5.1        tidymodels_0.0.2   glmnet_2.0-16      foreach_1.4.4     
+[17] Matrix_1.2-17      caret_6.0-82       ggplot2_3.1.1      lattice_0.20-38   
+
+loaded via a namespace (and not attached):
+ [1] minqa_1.2.4         colorspace_1.4-1    class_7.3-15       
+ [4] ggridges_0.5.1      rsconnect_0.8.13    markdown_0.9       
+ [7] base64enc_0.1-3     tidytext_0.2.0      rstudioapi_0.10    
+[10] rstan_2.18.2        SnowballC_0.6.0     DT_0.5             
+[13] prodlim_2018.04.18  lubridate_1.7.4     codetools_0.2-16   
+[16] splines_3.6.0       knitr_1.23          shinythemes_1.1.2  
+[19] bayesplot_1.6.0     nloptr_1.2.1        pROC_1.14.0        
+[22] shiny_1.2.0         compiler_3.6.0      backports_1.1.4    
+[25] assertthat_0.2.1    lazyeval_0.2.2      cli_1.1.0          
+[28] later_0.8.0         htmltools_0.3.6     prettyunits_1.0.2  
+[31] tools_3.6.0         igraph_1.2.4        gtable_0.3.0       
+[34] glue_1.3.1          reshape2_1.4.3      Rcpp_1.0.1         
+[37] nlme_3.1-139        iterators_1.0.10    crosstalk_1.0.0    
+[40] timeDate_3043.102   gower_0.2.0         xfun_0.7           
+[43] stringr_1.4.0       ps_1.3.0            lme4_1.1-20        
+[46] mime_0.6            miniUI_0.1.1.1      gtools_3.8.1       
+[49] tidypredict_0.3.0   MASS_7.3-51.4       zoo_1.8-5          
+[52] ipred_0.9-8         rstanarm_2.18.2     colourpicker_1.0   
+[55] promises_1.0.1      parallel_3.6.0      inline_0.3.15      
+[58] shinystan_2.5.0     tidyposterior_0.0.2 gridExtra_2.3      
+[61] loo_2.0.0           StanHeaders_2.18.1  rpart_4.1-15       
+[64] stringi_1.4.3       tokenizers_0.2.1    dygraphs_1.1.1.6   
+[67] pkgbuild_1.0.3      lava_1.6.5          rlang_0.3.99.9003  
+[70] pkgconfig_2.0.2     matrixStats_0.54.0  rstantools_1.5.1   
+[73] htmlwidgets_1.3     processx_3.3.1      tidyselect_0.2.5   
+[76] plyr_1.8.4          magrittr_1.5        R6_2.4.0           
+[79] generics_0.0.2      pillar_1.4.1        withr_2.1.2        
+[82] xts_0.11-2          survival_2.44-1.1   nnet_7.3-12        
+[85] janeaustenr_0.1.5   crayon_1.3.4        grid_3.6.0         
+[88] data.table_1.12.2   callr_3.2.0         ModelMetrics_1.2.2 
+[91] threejs_0.3.1       digest_0.6.19       xtable_1.8-3       
+[94] httpuv_1.4.5.1      stats4_3.6.0        munsell_0.5.0      
+[97] shinyjs_1.0        
+> 
+> if (!interactive())
++   q("no")
+> proc.time()
+   user  system elapsed 
+ 43.939   1.676  45.753 

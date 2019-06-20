@@ -1,0 +1,821 @@
+
+R version 3.6.0 (2019-04-26) -- "Planting of a Tree"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # ------------------------------------------------------------------------------
+> # Feature Engineering and Selection: A Practical Approach for Predictive Models
+> # by Max Kuhn and Kjell Johnson
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code for Section 7.5.3 at
+> # https://bookdown.org/max/FES/detecting-interaction-effects.html#approaches-when-complete-enumeration-is-practically-impossible
+> #
+> # ------------------------------------------------------------------------------
+> # 
+> # Code requires these packages: 
+> 
+> library(tidymodels)
+Registered S3 methods overwritten by 'ggplot2':
+  method         from 
+  [.quosures     rlang
+  c.quosures     rlang
+  print.quosures rlang
+Registered S3 method overwritten by 'xts':
+  method     from
+  as.zoo.xts zoo 
+── Attaching packages ────────────────────────────────────── tidymodels 0.0.2 ──
+✔ broom     0.5.1          ✔ purrr     0.3.2     
+✔ dials     0.0.2          ✔ recipes   0.1.5     
+✔ dplyr     0.8.0.1        ✔ rsample   0.0.4     
+✔ ggplot2   3.1.1          ✔ tibble    2.1.3     
+✔ infer     0.4.0          ✔ yardstick 0.0.2     
+✔ parsnip   0.0.2.9000     
+── Conflicts ───────────────────────────────────────── tidymodels_conflicts() ──
+✖ purrr::discard() masks scales::discard()
+✖ dplyr::filter()  masks stats::filter()
+✖ dplyr::lag()     masks stats::lag()
+✖ recipes::step()  masks stats::step()
+Warning messages:
+1: replacing previous import ‘ggplot2::vars’ by ‘rlang::vars’ when loading ‘bayesplot’ 
+2: replacing previous import ‘dplyr::vars’ by ‘rlang::vars’ when loading ‘tidytext’ 
+> library(AmesHousing)
+> library(furrr)
+Loading required package: future
+> library(stringr)
+
+Attaching package: ‘stringr’
+
+The following object is masked from ‘package:recipes’:
+
+    fixed
+
+> library(cli)
+> library(crayon)
+
+Attaching package: ‘crayon’
+
+The following object is masked from ‘package:ggplot2’:
+
+    %+%
+
+> library(stringr)
+> 
+> source("fsa_functions.R")
+> source("../clean_value.R")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> ames <- make_ames()
+> 
+> set.seed(955)
+> ames_split <- initial_split(ames)
+> ames_train <- training(ames_split)
+> 
+> set.seed(24873)
+> ames_folds <- vfold_cv(ames_train)
+> 
+> # ------------------------------------------------------------------------------
+> 
+> ames_rec <-
++   recipe(Sale_Price ~ Bldg_Type + Neighborhood + Year_Built +
++            Gr_Liv_Area + Full_Bath + Year_Sold + Lot_Area +
++            Central_Air + Longitude + Latitude + MS_SubClass +
++            Alley + Lot_Frontage + Pool_Area + Garage_Finish + 
++            Foundation + Land_Contour + Roof_Style,
++          data = ames_train) %>%
++   step_log(Sale_Price, base = 10) %>%
++   step_BoxCox(Lot_Area, Gr_Liv_Area, Lot_Frontage) %>%
++   step_other(Neighborhood, threshold = 0.05) %>% 
++   step_dummy(all_nominal()) %>% 
++   step_bs(Longitude, Latitude, options = list(df = 5))  %>%
++   step_zv(all_predictors())
+> 
+> # ------------------------------------------------------------------------------
+> 
+> multi_metric <- metric_set(rmse, mae, rsq)
+> 
+> lr_spec <- linear_reg() %>% set_engine("lm")
+> 
+> set.seed(236)
+> ames_search <- fsa_two_way(ames_folds, ames_rec, lr_spec, multi_metric)
+Prepping on entire data set
+Prepping and modeling across resamples
+-- Iteration 1 ---------------------------------------------------------------------------------------------------------- 
+Finding match for Bldg_Type_Duplex 
+ + Foundation_PConc                                      0.0522
+ + Gr_Liv_Area                                           0.0516
+Finding match for Gr_Liv_Area 
+
+# A tibble: 2 x 6
+   iter var_1            var_2         perf  p_value swaps
+  <int> <chr>            <chr>        <dbl>    <dbl> <dbl>
+1     0 <NA>             <NA>        0.0523 NA          NA
+2     1 Bldg_Type_Duplex Gr_Liv_Area 0.0516  0.00178    58
+
+
+-- Iteration 2 ---------------------------------------------------------------------------------------------------------- 
+Finding match for Year_Sold 
+Finding match for Longitude_bs_3 
+ + Neighborhood_College_Creek                            0.052
+
+# A tibble: 2 x 6
+   iter var_1          var_2                        perf p_value swaps
+  <int> <chr>          <chr>                       <dbl>   <dbl> <dbl>
+1     0 <NA>           <NA>                       0.0523 NA         NA
+2     2 Longitude_bs_3 Neighborhood_College_Creek 0.0520  0.0146    59
+
+
+-- Iteration 3 ---------------------------------------------------------------------------------------------------------- 
+Finding match for Bldg_Type_TwoFmCon 
+ + Year_Sold                                             0.0522
+Finding match for Year_Sold 
+
+# A tibble: 2 x 6
+   iter var_1              var_2       perf p_value swaps
+  <int> <chr>              <chr>      <dbl>   <dbl> <dbl>
+1     0 <NA>               <NA>      0.0523 NA         NA
+2     3 Bldg_Type_TwoFmCon Year_Sold 0.0522  0.0459    59
+
+
+-- Iteration 4 ---------------------------------------------------------------------------------------------------------- 
+Finding match for Foundation_CBlock 
+ + Roof_Style_Hip                                        0.0521
+ + Gr_Liv_Area                                           0.0513
+Finding match for Gr_Liv_Area 
+
+# A tibble: 2 x 6
+   iter var_1             var_2         perf  p_value swaps
+  <int> <chr>             <chr>        <dbl>    <dbl> <dbl>
+1     0 <NA>              <NA>        0.0523 NA          NA
+2     4 Foundation_CBlock Gr_Liv_Area 0.0513  0.00539    58
+
+
+-- Iteration 5 ---------------------------------------------------------------------------------------------------------- 
+Finding match for Lot_Frontage 
+ + Neighborhood_Northridge_Heights                       0.052
+Finding match for Neighborhood_Northridge_Heights 
+ + Longitude_bs_2                                        0.0518
+
+# A tibble: 2 x 6
+   iter var_1          var_2                             perf  p_value swaps
+  <int> <chr>          <chr>                            <dbl>    <dbl> <dbl>
+1     0 <NA>           <NA>                            0.0523 NA          NA
+2     5 Longitude_bs_2 Neighborhood_Northridge_Heights 0.0518  0.00789    58
+
+
+-- Iteration 6 ---------------------------------------------------------------------------------------------------------- 
+Finding match for Neighborhood_Old_Town 
+Finding match for Roof_Style_Shed 
+
+# A tibble: 2 x 6
+   iter var_1                 var_2             perf p_value swaps
+  <int> <chr>                 <chr>            <dbl>   <dbl> <dbl>
+1     0 <NA>                  <NA>            0.0523      NA    NA
+2     6 Neighborhood_Old_Town Roof_Style_Shed 0.0523     NaN    60
+
+
+-- Iteration 7 ---------------------------------------------------------------------------------------------------------- 
+Finding match for MS_SubClass_One_Story_PUD_1946_and_Newer 
+ + Year_Built                                            0.0519
+Finding match for Year_Built 
+
+# A tibble: 2 x 6
+   iter var_1                                    var_2        perf p_value swaps
+  <int> <chr>                                    <chr>       <dbl>   <dbl> <dbl>
+1     0 <NA>                                     <NA>       0.0523 NA         NA
+2     7 MS_SubClass_One_Story_PUD_1946_and_Newer Year_Built 0.0519  0.0251    59
+
+
+-- Iteration 8 ---------------------------------------------------------------------------------------------------------- 
+Finding match for Land_Contour_Lvl 
+Finding match for Neighborhood_College_Creek 
+ + Longitude_bs_2                                        0.052
+
+# A tibble: 2 x 6
+   iter var_1          var_2                        perf p_value swaps
+  <int> <chr>          <chr>                       <dbl>   <dbl> <dbl>
+1     0 <NA>           <NA>                       0.0523 NA         NA
+2     8 Longitude_bs_2 Neighborhood_College_Creek 0.0520  0.0169    59
+
+
+-- Iteration 9 ---------------------------------------------------------------------------------------------------------- 
+Finding match for Bldg_Type_TwnhsE 
+Finding match for MS_SubClass_Two_and_Half_Story_All_Ages 
+
+# A tibble: 2 x 6
+   iter var_1            var_2                                     perf p_value swaps
+  <int> <chr>            <chr>                                    <dbl>   <dbl> <dbl>
+1     0 <NA>             <NA>                                    0.0523      NA    NA
+2     9 Bldg_Type_TwnhsE MS_SubClass_Two_and_Half_Story_All_Ages 0.0523     NaN    60
+
+
+-- Iteration 10 --------------------------------------------------------------------------------------------------------- 
+Finding match for MS_SubClass_PUD_Multilevel_Split_Level_Foyer 
+ + Longitude_bs_3                                        0.0522
+Finding match for Longitude_bs_3 
+
+# A tibble: 2 x 6
+   iter var_1          var_2                                          perf p_value swaps
+  <int> <chr>          <chr>                                         <dbl>   <dbl> <dbl>
+1     0 <NA>           <NA>                                         0.0523 NA         NA
+2    10 Longitude_bs_3 MS_SubClass_PUD_Multilevel_Split_Level_Foyer 0.0522  0.0402    59
+
+
+-- Iteration 11 --------------------------------------------------------------------------------------------------------- 
+Finding match for MS_SubClass_Two_Story_1945_and_Older 
+ + Gr_Liv_Area                                           0.0521
+Finding match for Gr_Liv_Area 
+ + MS_SubClass_Duplex_All_Styles_and_Ages                0.0516
+
+# A tibble: 2 x 6
+   iter var_1       var_2                                    perf  p_value swaps
+  <int> <chr>       <chr>                                   <dbl>    <dbl> <dbl>
+1     0 <NA>        <NA>                                   0.0523 NA          NA
+2    11 Gr_Liv_Area MS_SubClass_Duplex_All_Styles_and_Ages 0.0516  0.00102    58
+
+
+-- Iteration 12 --------------------------------------------------------------------------------------------------------- 
+Finding match for Garage_Finish_RFn 
+ + Latitude_bs_2                                         0.0522
+Finding match for Latitude_bs_2 
+
+# A tibble: 2 x 6
+   iter var_1             var_2           perf p_value swaps
+  <int> <chr>             <chr>          <dbl>   <dbl> <dbl>
+1     0 <NA>              <NA>          0.0523 NA         NA
+2    12 Garage_Finish_RFn Latitude_bs_2 0.0522  0.0984    59
+
+
+-- Iteration 13 --------------------------------------------------------------------------------------------------------- 
+Finding match for Garage_Finish_No_Garage 
+ + Land_Contour_Lvl                                      0.0522
+Finding match for Land_Contour_Lvl 
+
+# A tibble: 2 x 6
+   iter var_1                   var_2              perf p_value swaps
+  <int> <chr>                   <chr>             <dbl>   <dbl> <dbl>
+1     0 <NA>                    <NA>             0.0523 NA         NA
+2    13 Garage_Finish_No_Garage Land_Contour_Lvl 0.0522  0.0547    59
+
+
+-- Iteration 14 --------------------------------------------------------------------------------------------------------- 
+Finding match for MS_SubClass_Split_or_Multilevel 
+ + Gr_Liv_Area                                           0.052
+Finding match for Gr_Liv_Area 
+ + Foundation_PConc                                      0.0515
+
+# A tibble: 2 x 6
+   iter var_1            var_2         perf  p_value swaps
+  <int> <chr>            <chr>        <dbl>    <dbl> <dbl>
+1     0 <NA>             <NA>        0.0523 NA          NA
+2    14 Foundation_PConc Gr_Liv_Area 0.0515  0.00828    58
+
+
+-- Iteration 15 --------------------------------------------------------------------------------------------------------- 
+Finding match for Gr_Liv_Area 
+ + Foundation_PConc                                      0.0515
+Finding match for Foundation_PConc 
+
+# A tibble: 2 x 6
+   iter var_1            var_2         perf p_value swaps
+  <int> <chr>            <chr>        <dbl>   <dbl> <dbl>
+1     0 <NA>             <NA>        0.0523 NA         NA
+2    15 Foundation_PConc Gr_Liv_Area 0.0515  0.0374    59
+
+
+-- Iteration 16 --------------------------------------------------------------------------------------------------------- 
+Finding match for Land_Contour_Low 
+Finding match for Bldg_Type_Twnhs 
+ + Neighborhood_Edwards                                  0.0522
+
+# A tibble: 2 x 6
+   iter var_1           var_2                  perf p_value swaps
+  <int> <chr>           <chr>                 <dbl>   <dbl> <dbl>
+1     0 <NA>            <NA>                 0.0523 NA         NA
+2    16 Bldg_Type_Twnhs Neighborhood_Edwards 0.0522  0.0184    59
+
+
+-- Iteration 17 --------------------------------------------------------------------------------------------------------- 
+Finding match for Foundation_Wood 
+Finding match for Garage_Finish_No_Garage 
+ + Bldg_Type_Duplex                                      0.0522
+
+# A tibble: 2 x 6
+   iter var_1            var_2                     perf p_value swaps
+  <int> <chr>            <chr>                    <dbl>   <dbl> <dbl>
+1     0 <NA>             <NA>                    0.0523 NA         NA
+2    17 Bldg_Type_Duplex Garage_Finish_No_Garage 0.0522  0.0484    59
+
+
+-- Iteration 18 --------------------------------------------------------------------------------------------------------- 
+Finding match for Gr_Liv_Area 
+Finding match for MS_SubClass_Duplex_All_Styles_and_Ages 
+
+# A tibble: 2 x 6
+   iter var_1       var_2                                    perf p_value swaps
+  <int> <chr>       <chr>                                   <dbl>   <dbl> <dbl>
+1     0 <NA>        <NA>                                   0.0523      NA    NA
+2    18 Gr_Liv_Area MS_SubClass_Duplex_All_Styles_and_Ages 0.0516     NaN    60
+
+
+-- Iteration 19 --------------------------------------------------------------------------------------------------------- 
+Finding match for Year_Built 
+ + Land_Contour_Lvl                                      0.0522
+ + Roof_Style_Gable                                      0.0518
+Finding match for Roof_Style_Gable 
+
+# A tibble: 2 x 6
+   iter var_1            var_2        perf   p_value swaps
+  <int> <chr>            <chr>       <dbl>     <dbl> <dbl>
+1     0 <NA>             <NA>       0.0523 NA           NA
+2    19 Roof_Style_Gable Year_Built 0.0518  0.000320    58
+
+
+-- Iteration 20 --------------------------------------------------------------------------------------------------------- 
+Finding match for Roof_Style_Gable 
+ + Latitude_bs_3                                         0.0521
+ + Year_Built                                            0.0518
+Finding match for Year_Built 
+
+# A tibble: 2 x 6
+   iter var_1            var_2        perf p_value swaps
+  <int> <chr>            <chr>       <dbl>   <dbl> <dbl>
+1     0 <NA>             <NA>       0.0523 NA         NA
+2    20 Roof_Style_Gable Year_Built 0.0518  0.0124    58
+
+
+-- Iteration 21 --------------------------------------------------------------------------------------------------------- 
+Finding match for MS_SubClass_One_Story_with_Finished_Attic_All_Ages 
+Finding match for Year_Built 
+ + Roof_Style_Hip                                        0.0518
+
+# A tibble: 2 x 6
+   iter var_1          var_2        perf p_value swaps
+  <int> <chr>          <chr>       <dbl>   <dbl> <dbl>
+1     0 <NA>           <NA>       0.0523 NA         NA
+2    21 Roof_Style_Hip Year_Built 0.0518  0.0495    59
+
+
+-- Iteration 22 --------------------------------------------------------------------------------------------------------- 
+Finding match for MS_SubClass_Two_and_Half_Story_All_Ages 
+Finding match for Bldg_Type_TwnhsE 
+ + Longitude_bs_1                                        0.0522
+
+# A tibble: 2 x 6
+   iter var_1            var_2            perf p_value swaps
+  <int> <chr>            <chr>           <dbl>   <dbl> <dbl>
+1     0 <NA>             <NA>           0.0523 NA         NA
+2    22 Bldg_Type_TwnhsE Longitude_bs_1 0.0522  0.0701    59
+
+
+-- Iteration 23 --------------------------------------------------------------------------------------------------------- 
+Finding match for Longitude_bs_2 
+ + Neighborhood_Northridge_Heights                       0.0518
+Finding match for Neighborhood_Northridge_Heights 
+
+# A tibble: 2 x 6
+   iter var_1          var_2                             perf  p_value swaps
+  <int> <chr>          <chr>                            <dbl>    <dbl> <dbl>
+1     0 <NA>           <NA>                            0.0523 NA          NA
+2    23 Longitude_bs_2 Neighborhood_Northridge_Heights 0.0518  0.00538    59
+
+
+-- Iteration 24 --------------------------------------------------------------------------------------------------------- 
+Finding match for Neighborhood_Sawyer 
+ + Latitude_bs_3                                         0.0522
+Finding match for Latitude_bs_3 
+ + Neighborhood_College_Creek                            0.052
+
+# A tibble: 2 x 6
+   iter var_1         var_2                        perf  p_value swaps
+  <int> <chr>         <chr>                       <dbl>    <dbl> <dbl>
+1     0 <NA>          <NA>                       0.0523 NA          NA
+2    24 Latitude_bs_3 Neighborhood_College_Creek 0.0520  0.00986    58
+
+
+-- Iteration 25 --------------------------------------------------------------------------------------------------------- 
+Finding match for Neighborhood_Sawyer 
+Finding match for Latitude_bs_3 
+
+# A tibble: 2 x 6
+   iter var_1         var_2                 perf p_value swaps
+  <int> <chr>         <chr>                <dbl>   <dbl> <dbl>
+1     0 <NA>          <NA>                0.0523      NA    NA
+2    25 Latitude_bs_3 Neighborhood_Sawyer 0.0522     NaN    60
+
+
+-- Iteration 26 --------------------------------------------------------------------------------------------------------- 
+Finding match for Lot_Area 
+Finding match for MS_SubClass_One_Story_PUD_1946_and_Newer 
+ + Foundation_CBlock                                     0.052
+
+# A tibble: 2 x 6
+   iter var_1             var_2                                      perf p_value swaps
+  <int> <chr>             <chr>                                     <dbl>   <dbl> <dbl>
+1     0 <NA>              <NA>                                     0.0523 NA         NA
+2    26 Foundation_CBlock MS_SubClass_One_Story_PUD_1946_and_Newer 0.0520  0.0458    59
+
+
+-- Iteration 27 --------------------------------------------------------------------------------------------------------- 
+Finding match for Latitude_bs_2 
+ + Neighborhood_other                                    0.052
+Finding match for Neighborhood_other 
+
+# A tibble: 2 x 6
+   iter var_1         var_2                perf p_value swaps
+  <int> <chr>         <chr>               <dbl>   <dbl> <dbl>
+1     0 <NA>          <NA>               0.0523 NA         NA
+2    27 Latitude_bs_2 Neighborhood_other 0.0520  0.0393    59
+
+
+-- Iteration 28 --------------------------------------------------------------------------------------------------------- 
+Finding match for Land_Contour_Lvl 
+ + Roof_Style_Gable                                      0.0522
+Finding match for Roof_Style_Gable 
+ + Central_Air_Y                                         0.0521
+ + Year_Built                                            0.0518
+
+# A tibble: 2 x 6
+   iter var_1            var_2        perf  p_value swaps
+  <int> <chr>            <chr>       <dbl>    <dbl> <dbl>
+1     0 <NA>             <NA>       0.0523 NA          NA
+2    28 Roof_Style_Gable Year_Built 0.0518  0.00508    57
+
+
+-- Iteration 29 --------------------------------------------------------------------------------------------------------- 
+Finding match for Land_Contour_Low 
+Finding match for MS_SubClass_PUD_Multilevel_Split_Level_Foyer 
+ + Longitude_bs_3                                        0.0522
+
+# A tibble: 2 x 6
+   iter var_1          var_2                                          perf p_value swaps
+  <int> <chr>          <chr>                                         <dbl>   <dbl> <dbl>
+1     0 <NA>           <NA>                                         0.0523 NA         NA
+2    29 Longitude_bs_3 MS_SubClass_PUD_Multilevel_Split_Level_Foyer 0.0522  0.0402    59
+
+
+-- Iteration 30 --------------------------------------------------------------------------------------------------------- 
+Finding match for Latitude_bs_2 
+ + Neighborhood_other                                    0.052
+Finding match for Neighborhood_other 
+
+# A tibble: 2 x 6
+   iter var_1         var_2                perf p_value swaps
+  <int> <chr>         <chr>               <dbl>   <dbl> <dbl>
+1     0 <NA>          <NA>               0.0523 NA         NA
+2    30 Latitude_bs_2 Neighborhood_other 0.0520  0.0393    59
+
+
+-- Iteration 31 --------------------------------------------------------------------------------------------------------- 
+Finding match for MS_SubClass_Two_Story_1945_and_Older 
+Finding match for Bldg_Type_Duplex 
+ + Garage_Finish_Unf                                     0.0522
+ + Central_Air_Y                                         0.052
+
+# A tibble: 2 x 6
+   iter var_1            var_2           perf  p_value swaps
+  <int> <chr>            <chr>          <dbl>    <dbl> <dbl>
+1     0 <NA>             <NA>          0.0523 NA          NA
+2    31 Bldg_Type_Duplex Central_Air_Y 0.0520  0.00657    58
+
+
+-- Iteration 32 --------------------------------------------------------------------------------------------------------- 
+Finding match for Central_Air_Y 
+ + Roof_Style_Gable                                      0.0521
+Finding match for Roof_Style_Gable 
+
+# A tibble: 2 x 6
+   iter var_1         var_2              perf p_value swaps
+  <int> <chr>         <chr>             <dbl>   <dbl> <dbl>
+1     0 <NA>          <NA>             0.0523 NA         NA
+2    32 Central_Air_Y Roof_Style_Gable 0.0521  0.0423    59
+
+
+-- Iteration 33 --------------------------------------------------------------------------------------------------------- 
+Finding match for Full_Bath 
+ + Land_Contour_HLS                                      0.0519
+Finding match for Land_Contour_HLS 
+
+# A tibble: 2 x 6
+   iter var_1     var_2              perf p_value swaps
+  <int> <chr>     <chr>             <dbl>   <dbl> <dbl>
+1     0 <NA>      <NA>             0.0523 NA         NA
+2    33 Full_Bath Land_Contour_HLS 0.0519  0.0767    59
+
+
+-- Iteration 34 --------------------------------------------------------------------------------------------------------- 
+Finding match for MS_SubClass_One_Story_PUD_1946_and_Newer 
+ + Foundation_CBlock                                     0.052
+Finding match for Foundation_CBlock 
+ + Gr_Liv_Area                                           0.0513
+
+# A tibble: 2 x 6
+   iter var_1             var_2         perf  p_value swaps
+  <int> <chr>             <chr>        <dbl>    <dbl> <dbl>
+1     0 <NA>              <NA>        0.0523 NA          NA
+2    34 Foundation_CBlock Gr_Liv_Area 0.0513  0.00696    58
+
+
+-- Iteration 35 --------------------------------------------------------------------------------------------------------- 
+Finding match for MS_SubClass_PUD_Multilevel_Split_Level_Foyer 
+Finding match for Foundation_PConc 
+ + Gr_Liv_Area                                           0.0515
+
+# A tibble: 2 x 6
+   iter var_1            var_2         perf  p_value swaps
+  <int> <chr>            <chr>        <dbl>    <dbl> <dbl>
+1     0 <NA>             <NA>        0.0523 NA          NA
+2    35 Foundation_PConc Gr_Liv_Area 0.0515  0.00935    59
+
+
+-- Iteration 36 --------------------------------------------------------------------------------------------------------- 
+Finding match for Pool_Area 
+ + Roof_Style_Gambrel                                    0.0523
+Finding match for Roof_Style_Gambrel 
+ + Garage_Finish_No_Garage                               0.0522
+
+# A tibble: 2 x 6
+   iter var_1                   var_2                perf p_value swaps
+  <int> <chr>                   <chr>               <dbl>   <dbl> <dbl>
+1     0 <NA>                    <NA>               0.0523 NA         NA
+2    36 Garage_Finish_No_Garage Roof_Style_Gambrel 0.0522  0.0371    58
+
+
+-- Iteration 37 --------------------------------------------------------------------------------------------------------- 
+Finding match for MS_SubClass_One_and_Half_Story_Unfinished_All_Ages 
+Finding match for Longitude_bs_1 
+ + Neighborhood_Northridge_Heights                       0.052
+
+# A tibble: 2 x 6
+   iter var_1          var_2                             perf p_value swaps
+  <int> <chr>          <chr>                            <dbl>   <dbl> <dbl>
+1     0 <NA>           <NA>                            0.0523 NA         NA
+2    37 Longitude_bs_1 Neighborhood_Northridge_Heights 0.0520  0.0297    59
+
+
+-- Iteration 38 --------------------------------------------------------------------------------------------------------- 
+Finding match for MS_SubClass_Two_Story_1946_and_Newer 
+ + Neighborhood_College_Creek                            0.0522
+Finding match for Neighborhood_College_Creek 
+ + Latitude_bs_1                                         0.052
+
+# A tibble: 2 x 6
+   iter var_1         var_2                        perf p_value swaps
+  <int> <chr>         <chr>                       <dbl>   <dbl> <dbl>
+1     0 <NA>          <NA>                       0.0523 NA         NA
+2    38 Latitude_bs_1 Neighborhood_College_Creek 0.0520  0.0125    58
+
+
+-- Iteration 39 --------------------------------------------------------------------------------------------------------- 
+Finding match for Neighborhood_Somerset 
+Finding match for MS_SubClass_One_Story_1945_and_Older 
+
+# A tibble: 2 x 6
+   iter var_1                                var_2                   perf p_value swaps
+  <int> <chr>                                <chr>                  <dbl>   <dbl> <dbl>
+1     0 <NA>                                 <NA>                  0.0523      NA    NA
+2    39 MS_SubClass_One_Story_1945_and_Older Neighborhood_Somerset 0.0523     NaN    60
+
+
+-- Iteration 40 --------------------------------------------------------------------------------------------------------- 
+Finding match for Roof_Style_Gambrel 
+ + MS_SubClass_Two_and_Half_Story_All_Ages               0.0523
+Finding match for MS_SubClass_Two_and_Half_Story_All_Ages 
+
+# A tibble: 2 x 6
+   iter var_1                                   var_2                perf p_value swaps
+  <int> <chr>                                   <chr>               <dbl>   <dbl> <dbl>
+1     0 <NA>                                    <NA>               0.0523 NA         NA
+2    40 MS_SubClass_Two_and_Half_Story_All_Ages Roof_Style_Gambrel 0.0523  0.0457    59
+
+
+-- Iteration 41 --------------------------------------------------------------------------------------------------------- 
+Finding match for Foundation_Wood 
+Finding match for MS_SubClass_PUD_Multilevel_Split_Level_Foyer 
+ + Foundation_PConc                                      0.0522
+
+# A tibble: 2 x 6
+   iter var_1            var_2                                          perf p_value swaps
+  <int> <chr>            <chr>                                         <dbl>   <dbl> <dbl>
+1     0 <NA>             <NA>                                         0.0523 NA         NA
+2    41 Foundation_PConc MS_SubClass_PUD_Multilevel_Split_Level_Foyer 0.0522  0.0341    59
+
+
+-- Iteration 42 --------------------------------------------------------------------------------------------------------- 
+Finding match for Neighborhood_Sawyer 
+Finding match for Lot_Area 
+ + Foundation_CBlock                                     0.0519
+
+# A tibble: 2 x 6
+   iter var_1             var_2      perf p_value swaps
+  <int> <chr>             <chr>     <dbl>   <dbl> <dbl>
+1     0 <NA>              <NA>     0.0523 NA         NA
+2    42 Foundation_CBlock Lot_Area 0.0519  0.0170    59
+
+
+-- Iteration 43 --------------------------------------------------------------------------------------------------------- 
+Finding match for Foundation_CBlock 
+ + Lot_Area                                              0.0519
+ + Gr_Liv_Area                                           0.0513
+Finding match for Gr_Liv_Area 
+
+# A tibble: 2 x 6
+   iter var_1             var_2         perf  p_value swaps
+  <int> <chr>             <chr>        <dbl>    <dbl> <dbl>
+1     0 <NA>              <NA>        0.0523 NA          NA
+2    43 Foundation_CBlock Gr_Liv_Area 0.0513  0.00903    58
+
+
+-- Iteration 44 --------------------------------------------------------------------------------------------------------- 
+Finding match for Pool_Area 
+Finding match for MS_SubClass_One_and_Half_Story_Finished_All_Ages 
+ + Year_Built                                            0.0521
+
+# A tibble: 2 x 6
+   iter var_1                                            var_2        perf p_value swaps
+  <int> <chr>                                            <chr>       <dbl>   <dbl> <dbl>
+1     0 <NA>                                             <NA>       0.0523 NA         NA
+2    44 MS_SubClass_One_and_Half_Story_Finished_All_Ages Year_Built 0.0521  0.0414    59
+
+
+-- Iteration 45 --------------------------------------------------------------------------------------------------------- 
+Finding match for Central_Air_Y 
+ + MS_SubClass_Two_Story_PUD_1946_and_Newer              0.0523
+ + MS_SubClass_Duplex_All_Styles_and_Ages                0.052
+Finding match for MS_SubClass_Duplex_All_Styles_and_Ages 
+ + Gr_Liv_Area                                           0.0516
+
+# A tibble: 2 x 6
+   iter var_1       var_2                                    perf   p_value swaps
+  <int> <chr>       <chr>                                   <dbl>     <dbl> <dbl>
+1     0 <NA>        <NA>                                   0.0523 NA           NA
+2    45 Gr_Liv_Area MS_SubClass_Duplex_All_Styles_and_Ages 0.0516  0.000821    57
+
+
+-- Iteration 46 --------------------------------------------------------------------------------------------------------- 
+Finding match for Bldg_Type_Duplex 
+ + Roof_Style_Mansard                                    0.0523
+ + Central_Air_Y                                         0.052
+Finding match for Central_Air_Y 
+
+# A tibble: 2 x 6
+   iter var_1            var_2           perf p_value swaps
+  <int> <chr>            <chr>          <dbl>   <dbl> <dbl>
+1     0 <NA>             <NA>          0.0523 NA         NA
+2    46 Bldg_Type_Duplex Central_Air_Y 0.0520  0.0113    58
+
+
+-- Iteration 47 --------------------------------------------------------------------------------------------------------- 
+Finding match for Foundation_Wood 
+Finding match for Gr_Liv_Area 
+ + Neighborhood_Northridge_Heights                       0.0519
+
+# A tibble: 2 x 6
+   iter var_1       var_2                             perf p_value swaps
+  <int> <chr>       <chr>                            <dbl>   <dbl> <dbl>
+1     0 <NA>        <NA>                            0.0523 NA         NA
+2    47 Gr_Liv_Area Neighborhood_Northridge_Heights 0.0519  0.0964    59
+
+
+-- Iteration 48 --------------------------------------------------------------------------------------------------------- 
+Finding match for MS_SubClass_One_Story_1945_and_Older 
+Finding match for Garage_Finish_No_Garage 
+
+# A tibble: 2 x 6
+   iter var_1                   var_2                                  perf p_value swaps
+  <int> <chr>                   <chr>                                 <dbl>   <dbl> <dbl>
+1     0 <NA>                    <NA>                                 0.0523      NA    NA
+2    48 Garage_Finish_No_Garage MS_SubClass_One_Story_1945_and_Older 0.0522     NaN    60
+
+
+-- Iteration 49 --------------------------------------------------------------------------------------------------------- 
+Finding match for Roof_Style_Mansard 
+Finding match for Neighborhood_Sawyer 
+ + Gr_Liv_Area                                           0.0521
+
+# A tibble: 2 x 6
+   iter var_1       var_2                 perf p_value swaps
+  <int> <chr>       <chr>                <dbl>   <dbl> <dbl>
+1     0 <NA>        <NA>                0.0523 NA         NA
+2    49 Gr_Liv_Area Neighborhood_Sawyer 0.0521  0.0985    59
+
+
+-- Iteration 50 --------------------------------------------------------------------------------------------------------- 
+Finding match for Longitude_bs_1 
+ + Neighborhood_other                                    0.052
+Finding match for Neighborhood_other 
+
+# A tibble: 2 x 6
+   iter var_1          var_2                perf p_value swaps
+  <int> <chr>          <chr>               <dbl>   <dbl> <dbl>
+1     0 <NA>           <NA>               0.0523 NA         NA
+2    50 Longitude_bs_1 Neighborhood_other 0.0520  0.0376    59
+
+
+There were 50 or more warnings (use warnings() to see the first 50)
+> 
+> # for parallel processing
+> plan(multiprocess)
+> 
+> # https://bookdown.org/max/FES/approaches-when-complete-enumeration-is-practically-impossible.html#tab:interactions-fsa-ames-results
+> ames_search %>% 
++   arrange(perf) %>% 
++   dplyr::filter(perf < ames_search %>% slice(1) %>% pull(perf)) %>% 
++   dplyr::select(-iter, -seeds, -change, -swaps, RMSE = perf) %>% 
++   distinct() %>% 
++   mutate(
++     var_1 = clean_value(var_1),
++     var_2 = clean_value(var_2)
++   ) %>% 
++   group_by(var_1, var_2) %>% 
++   summarize(
++     pval = pval[which.min(RMSE)],
++     RMSE = RMSE[which.min(RMSE)]
++   ) %>% 
++   ungroup() %>% 
++   arrange(RMSE)
+# A tibble: 31 x 4
+   var_1                var_2                                       pval   RMSE
+   <chr>                <chr>                                      <dbl>  <dbl>
+ 1 Foundation: CBlock   Living Area                             0.00539  0.0513
+ 2 Foundation: PConc    Living Area                             0.00828  0.0515
+ 3 Building Type Duplex Living Area                             0.00178  0.0516
+ 4 Living Area          MS SubClass: Duplex All Styles and Ages 0.00102  0.0516
+ 5 Roof Style: Hip      Year Built                              0.0495   0.0518
+ 6 Roof Style: Gable    Year Built                              0.000320 0.0518
+ 7 Longitude (spline)   Neighborhood: Northridge Heights        0.00789  0.0518
+ 8 Living Area          Neighborhood: Northridge Heights        0.0964   0.0519
+ 9 Full Bath            Land Contour: HLS                       0.0767   0.0519
+10 Foundation: CBlock   Lot Area                                0.0170   0.0519
+# … with 21 more rows
+> 
+> # ------------------------------------------------------------------------------
+> 
+> save(ames_search, file = "ames_fsa.RData")
+> 
+> # ------------------------------------------------------------------------------
+> 
+> sessionInfo()
+R version 3.6.0 (2019-04-26)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS High Sierra 10.13.6
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] crayon_1.3.4       cli_1.1.0          stringr_1.4.0      furrr_0.1.0        future_1.11.1.1    AmesHousing_0.0.3 
+ [7] yardstick_0.0.2    tibble_2.1.3       rsample_0.0.4      tidyr_0.8.3        recipes_0.1.5      purrr_0.3.2       
+[13] parsnip_0.0.2.9000 infer_0.4.0        ggplot2_3.1.1      dplyr_0.8.0.1      dials_0.0.2        scales_1.0.0      
+[19] broom_0.5.1        tidymodels_0.0.2  
+
+loaded via a namespace (and not attached):
+ [1] minqa_1.2.4         colorspace_1.4-1    class_7.3-15        ggridges_0.5.1      rsconnect_0.8.13   
+ [6] markdown_0.9        base64enc_0.1-3     tidytext_0.2.0      rstudioapi_0.10     listenv_0.7.0      
+[11] rstan_2.18.2        SnowballC_0.6.0     DT_0.5              fansi_0.4.0         prodlim_2018.04.18 
+[16] lubridate_1.7.4     codetools_0.2-16    splines_3.6.0       knitr_1.23          shinythemes_1.1.2  
+[21] zeallot_0.1.0       bayesplot_1.6.0     nloptr_1.2.1        pROC_1.14.0         shiny_1.2.0        
+[26] compiler_3.6.0      backports_1.1.4     assertthat_0.2.1    Matrix_1.2-17       lazyeval_0.2.2     
+[31] later_0.8.0         htmltools_0.3.6     prettyunits_1.0.2   tools_3.6.0         igraph_1.2.4       
+[36] gtable_0.3.0        glue_1.3.1          reshape2_1.4.3      Rcpp_1.0.1          vctrs_0.1.0.9004   
+[41] nlme_3.1-139        crosstalk_1.0.0     timeDate_3043.102   gower_0.2.0         xfun_0.7           
+[46] globals_0.12.4      ps_1.3.0            lme4_1.1-20         mime_0.6            miniUI_0.1.1.1     
+[51] gtools_3.8.1        tidypredict_0.3.0   MASS_7.3-51.4       zoo_1.8-5           ipred_0.9-8        
+[56] rstanarm_2.18.2     colourpicker_1.0    promises_1.0.1      parallel_3.6.0      inline_0.3.15      
+[61] shinystan_2.5.0     tidyposterior_0.0.2 gridExtra_2.3       loo_2.0.0           StanHeaders_2.18.1 
+[66] rpart_4.1-15        stringi_1.4.3       tokenizers_0.2.1    dygraphs_1.1.1.6    pkgbuild_1.0.3     
+[71] lava_1.6.5          rlang_0.3.99.9003   pkgconfig_2.0.2     matrixStats_0.54.0  lattice_0.20-38    
+[76] rstantools_1.5.1    htmlwidgets_1.3     processx_3.3.1      tidyselect_0.2.5    plyr_1.8.4         
+[81] magrittr_1.5        R6_2.4.0            generics_0.0.2      pillar_1.4.1        withr_2.1.2        
+[86] xts_0.11-2          survival_2.44-1.1   nnet_7.3-12         janeaustenr_0.1.5   utf8_1.1.4         
+[91] grid_3.6.0          callr_3.2.0         threejs_0.3.1       digest_0.6.19       xtable_1.8-3       
+[96] httpuv_1.4.5.1      stats4_3.6.0        munsell_0.5.0       shinyjs_1.0        
+> 
+> if (!interactive())
++   q("no")
+> proc.time()
+    user   system  elapsed 
+1935.032   22.291 1958.548 
