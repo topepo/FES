@@ -398,8 +398,10 @@ rfe_tab <-
 
 # ------------------------------------------------------------------------------
 
-save(risk_main_rfe, risk_int_rfe, img_main_rfe, img_int_rfe, both_main_rfe,
-     both_main_rfe, file = "stroke_rfe.RData")
+save(both_int_filtered_rfe, both_int_rfe, both_main_filtered_rfe, both_main_rfe, 
+     img_int_filtered_rfe, img_int_rfe, img_main_filtered_rfe, img_main_rfe, 
+     risk_int_filtered_rfe, risk_int_rfe, risk_main_filtered_rfe, risk_main_rfe, 
+     file = "stroke_rfe.RData")
 
 # ------------------------------------------------------------------------------
 
