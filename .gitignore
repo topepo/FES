@@ -34,3 +34,4 @@ vignettes/*.pdf
 .DS_Store
 Data_Sets/OkCupid/essays.RData
 Data_Sets/OkCupid/profiles.csv
+.Rproj.user
