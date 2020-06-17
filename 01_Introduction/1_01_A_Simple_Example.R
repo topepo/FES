@@ -15,6 +15,7 @@ library(caret)
 library(tidymodels)
 # library(pROC)
 library(ggthemes)
+library(e1071)
 
 # Create example data ----------------------------------------------------------
 
