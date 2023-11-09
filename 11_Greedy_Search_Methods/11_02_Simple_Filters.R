@@ -149,7 +149,7 @@ for (i in 1:iter) {
     step_scale(all_predictors())
 
   subset_model <- train(
-    pd_rec,
+    subset_rec,
     data = pd_tr,
     method = "widekernelpls",
     tuneLength = 20,
